@@ -1,0 +1,2 @@
+menv is a plugin-based environment framework.
+The core provides common infrastructure, while each environment is a self-contained plugin built on top of the core. Plugins may depend on the core but never on other plugins, and all state and configuration must remain inside the plugin itself.

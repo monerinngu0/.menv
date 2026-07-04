@@ -1,0 +1,10 @@
+[apt]
+packages = [
+  "python3-venv"
+]
+
+[venv]
+path = ".venv"
+python = "python3"
+packages = [
+]

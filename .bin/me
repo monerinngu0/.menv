@@ -1,0 +1,366 @@
+#!/usr/bin/env bash
+
+export MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+export MENV_ENVS="$MENV_ROOT/envs"
+
+me_usage() {
+    cat <<EOF
+usage:
+  me              show current env path
+  me pwd          show current env path
+  me --help       show help
+
+  me ~            go to menv root
+  me ~/kyopro     go from menv root
+  me menv         ./menv -> ../menv -> menv root
+  me menv/kyopro  go from menv root
+
+  me /            leave menv
+  me -            go to previous env
+  me .            stay current env
+  me ..           go parent env
+
+  me name         ./name -> ../name
+  me ./name       relative path
+  me ../name      relative path
+EOF
+}
+
+me_print_pwd() {
+    if [ "$MENV_ACTIVE" = "1" ]; then
+        echo "/${MENV_PATH}"
+    else
+        echo "/"
+    fi
+}
+
+me_ls() {
+    local dir
+
+    if [ -z "$MENV_PATH" ]; then
+        dir="$MENV_ROOT/envs"
+    else
+        dir="$MENV_ROOT/envs/$MENV_PATH"
+    fi
+
+    find "$dir" \
+        -mindepth 1 \
+        -maxdepth 1 \
+        -type d \
+        ! -name ".*" \
+        -printf "%f\n" |
+        sort
+}
+
+me_real_path() {
+    local vpath="$1"
+
+    if [ -z "$vpath" ]; then
+        echo "$MENV_ENVS"
+    else
+        echo "$MENV_ENVS/$vpath"
+    fi
+}
+
+me_exists() {
+    local real
+    real="$(me_real_path "$1")"
+
+    [ -d "$real" ] || return 1
+
+    local name
+    name="$(basename "$real")"
+
+    [[ "$name" != .* ]]
+}
+
+me_normalize() {
+    local raw="$1"
+    local out=()
+    local part
+
+    IFS='/' read -ra parts <<< "$raw"
+
+    for part in "${parts[@]}"; do
+        [ -z "$part" ] && continue
+        [ "$part" = "." ] && continue
+
+        if [ "$part" = ".." ]; then
+            if [ "${#out[@]}" -gt 0 ]; then
+                unset 'out[${#out[@]}-1]'
+            else
+                echo "__LEAVE__"
+                return
+            fi
+        else
+            out+=("$part")
+        fi
+    done
+
+    local result=""
+    for part in "${out[@]}"; do
+        if [ -z "$result" ]; then
+            result="$part"
+        else
+            result="$result/$part"
+        fi
+    done
+
+    echo "$result"
+}
+
+me_join_current() {
+    local input="$1"
+    local base="${MENV_PATH:-}"
+
+    if [ -z "$base" ]; then
+        me_normalize "$input"
+    else
+        me_normalize "$base/$input"
+    fi
+}
+
+me_parent_path() {
+    local base="${MENV_PATH:-}"
+
+    if [ -z "$base" ]; then
+        echo "__LEAVE__"
+    elif [[ "$base" != */* ]]; then
+        echo ""
+    else
+        echo "${base%/*}"
+    fi
+}
+
+me_resolve_name() {
+    local name="$1"
+
+    local current
+    current="$(me_join_current "$name")"
+
+    if me_exists "$current"; then
+        echo "$current"
+        return 0
+    fi
+
+    local parent
+    parent="$(me_parent_path)"
+
+    if [ "$parent" != "__LEAVE__" ]; then
+        local sibling
+
+        if [ -z "$parent" ]; then
+            sibling="$name"
+        else
+            sibling="$parent/$name"
+        fi
+
+        if me_exists "$sibling"; then
+            echo "$sibling"
+            return 0
+        fi
+    fi
+
+    if [ "$name" = "menv" ]; then
+        echo ""
+        return 0
+    fi
+
+    return 1
+}
+
+me_rebuild_path() {
+    local new_path="$1"
+
+    local path="$MENV_ORIGINAL_PATH"
+
+    path="$MENV_ROOT/.bin:$path"
+
+    if [ -d "$MENV_ROOT/.venv/bin" ]; then
+        path="$MENV_ROOT/.venv/bin:$path"
+    fi
+
+    local cur=""
+    local part
+    local real
+
+    IFS='/' read -ra parts <<< "$new_path"
+
+    for part in "${parts[@]}"; do
+        [ -z "$part" ] && continue
+
+        if [ -z "$cur" ]; then
+            cur="$part"
+        else
+            cur="$cur/$part"
+        fi
+
+        real="$(me_real_path "$cur")"
+
+        if [ -d "$real/.bin" ]; then
+            path="$real/.bin:$path"
+        fi
+
+        if [ -d "$real/.venv/bin" ]; then
+            path="$real/.venv/bin:$path"
+        fi
+    done
+
+    export PATH="$path"
+}
+
+me_rebuild_ps1() {
+    local new_path="$1"
+
+    if [ -z "$new_path" ]; then
+        export PS1="(menv)$MENV_ORIGINAL_PS1"
+        return
+    fi
+
+    local prefix="(m)"
+    local parts
+    local part
+    local cur=""
+    local short
+    local name_file
+
+    IFS='/' read -ra parts <<< "$new_path"
+
+    for ((i=0; i<${#parts[@]}; i++)); do
+        part="${parts[$i]}"
+        [ -z "$part" ] && continue
+
+        if [ -z "$cur" ]; then
+            cur="$part"
+        else
+            cur="$cur/$part"
+        fi
+
+        if [ "$i" -eq $((${#parts[@]} - 1)) ]; then
+            prefix="[$part]$prefix"
+        else
+            name_file="$(me_real_path "$cur")/.name"
+            if [ -f "$name_file" ]; then
+                short="$(<"$name_file")"
+            else
+                short="${part:0:1}"
+            fi
+            prefix="[$short]$prefix"
+        fi
+    done
+
+    export PS1="$prefix$MENV_ORIGINAL_PS1"
+}
+
+me_enter_if_needed() {
+    if [ "$MENV_ACTIVE" != "1" ]; then
+        export MENV_ORIGINAL_PATH="$PATH"
+        export MENV_ORIGINAL_PS1="$PS1"
+        export MENV_ACTIVE="1"
+    fi
+}
+
+me_apply() {
+    local new_path="$1"
+
+    me_enter_if_needed
+
+    export MENV_PREV_PATH="${MENV_PATH:-}"
+    export MENV_PATH="$new_path"
+
+    me_rebuild_path "$new_path"
+    me_rebuild_ps1 "$new_path"
+}
+
+me_leave() {
+    if [ "$MENV_ACTIVE" = "1" ]; then
+        export PATH="$MENV_ORIGINAL_PATH"
+        export PS1="$MENV_ORIGINAL_PS1"
+    fi
+
+    unset MENV_ACTIVE
+    unset MENV_PATH
+    unset MENV_PREV_PATH
+    unset MENV_ORIGINAL_PATH
+    unset MENV_ORIGINAL_PS1
+}
+
+me_go() {
+    local target="$1"
+
+    if [ "$target" = "__LEAVE__" ]; then
+        me_leave
+    elif me_exists "$target"; then
+        me_apply "$target"
+    else
+        echo "me: env not found: $1"
+        return 1
+    fi
+}
+
+case "${1-}" in
+    --help)
+        me_usage
+        ;;
+
+    ""|pwd)
+        me_print_pwd
+        ;;
+
+    ls)
+        me_ls
+        ;;
+
+    "/")
+        me_leave
+        ;;
+
+    "-")
+        if [ -z "${MENV_PREV_PATH+x}" ]; then
+            echo "me: no previous env"
+            return 1
+        fi
+        me_go "$MENV_PREV_PATH"
+        ;;
+
+    ".")
+        me_go "${MENV_PATH:-}"
+        ;;
+
+    "..")
+        me_go "$(me_parent_path)"
+        ;;
+
+    "~")
+        me_go ""
+        ;;
+
+    "~/"*)
+        me_go "$(me_normalize "${1#~/}")"
+        ;;
+
+    "menv")
+        if target="$(me_resolve_name "menv")"; then
+            me_go "$target"
+        else
+            me_go ""
+        fi
+        ;;
+
+    "menv/"*)
+        me_go "$(me_normalize "${1#menv/}")"
+        ;;
+
+    */*)
+        me_go "$(me_join_current "$1")"
+        ;;
+
+    *)
+        if target="$(me_resolve_name "$1")"; then
+            me_go "$target"
+        else
+            echo "me: env not found: $1"
+            return 1
+        fi
+        ;;
+esac

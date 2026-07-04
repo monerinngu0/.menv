@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+
+MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+
+python3 "$MENV_ROOT/.lib/mchmod.py" "$@"

@@ -1,0 +1,15 @@
+[apt]
+packages = [
+    "g++",
+    "python3-venv"
+]
+
+[commands]
+names = ["g++"]
+
+[venv]
+path = ".venv"
+packages = [
+    "setuptools",
+    "online-judge-tools"
+]

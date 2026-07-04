@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -e
+
+MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+
+source "$MENV_ROOT/.lib/common.sh"
+
+if command -v python3 >/dev/null 2>&1; then
+    ok "python3"
+else
+    ng "python3"
+    if ask "Install python3?"; then
+        run_quiet "installing python3" sudo apt install -y python3
+    else
+        exit 1
+    fi
+fi
+
+if python3 -m venv --help >/dev/null 2>&1; then
+    ok "python3-venv"
+else
+    ng "python3-venv"
+    if ask "Install python3-venv?"; then
+        run_quiet "installing python3-venv" sudo apt install -y python3-venv
+    else
+        exit 1
+    fi
+fi
+
+python3 "$MENV_ROOT/.lib/mcheck.py" "$@"
