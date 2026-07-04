@@ -8,7 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 MENV_ROOT = Path(os.environ.get("MENV_ROOT", Path.home() / ".menv"))
 SONG_ROOT = MENV_ROOT / "envs" / "song"
 
@@ -16,15 +15,22 @@ sys.path.insert(0, str(MENV_ROOT / ".lib"))
 sys.path.insert(0, str(SONG_ROOT / ".lib"))
 
 from common import ok, ng, info  # noqa: E402
-from song import create_category, require_workspace, song_ytdlp  # noqa: E402
+from song import create_category, require_workspace, song_ytdlp, song_ffmpeg_bin_dir, song_deno  # noqa: E402
 import slist  # noqa: E402
 
 
 def run_download(url: str, out_dir: Path, *, playlist: bool) -> None:
     ytdlp = song_ytdlp()
+    ffmpeg_bin_dir = song_ffmpeg_bin_dir()
+    deno = song_deno()
 
     if ytdlp is None:
         ng("yt-dlp not found")
+        info("run: scheck --install")
+        sys.exit(1)
+
+    if ffmpeg_bin_dir is None:
+        ng("song ffmpeg not found")
         info("run: scheck --install")
         sys.exit(1)
 
@@ -32,6 +38,8 @@ def run_download(url: str, out_dir: Path, *, playlist: bool) -> None:
 
     cmd = [
         ytdlp,
+        "--ffmpeg-location",
+        str(ffmpeg_bin_dir),
         "--extract-audio",
         "--audio-format",
         "mp3",
@@ -42,6 +50,14 @@ def run_download(url: str, out_dir: Path, *, playlist: bool) -> None:
         "-o",
         str(out_dir / "%(title)s.%(ext)s"),
     ]
+
+    deno = song_deno()
+
+    if deno is not None:
+        cmd += [
+            "--js-runtimes",
+            f"deno:{deno}",
+        ]
 
     if not playlist:
         cmd.append("--no-playlist")

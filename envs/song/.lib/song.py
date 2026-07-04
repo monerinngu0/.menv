@@ -13,6 +13,8 @@ from typing import Any
 MENV_ROOT = Path(os.environ.get("MENV_ROOT", Path.home() / ".menv"))
 SONG_ROOT = MENV_ROOT / "envs" / "song"
 VENV = SONG_ROOT / ".venv"
+TOOLS_DIR = SONG_ROOT / ".tools"
+FFMPEG_BIN_DIR = TOOLS_DIR / "ffmpeg" / "bin"
 
 WORKSPACE_MARKER = "song-workspace"
 
@@ -36,7 +38,7 @@ def song_ytdlp() -> str | None:
     if local.exists() and os.access(local, os.X_OK):
         return str(local)
 
-    return shutil.which("yt-dlp")
+    return None
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -198,3 +200,25 @@ def file_info(path: Path, base: Path) -> dict[str, Any]:
         "size": st.st_size,
         "mtime": int(st.st_mtime),
     }
+
+def song_ffmpeg_bin_dir() -> Path | None:
+    ffmpeg = FFMPEG_BIN_DIR / "ffmpeg"
+    ffprobe = FFMPEG_BIN_DIR / "ffprobe"
+
+    if (
+        ffmpeg.exists()
+        and os.access(ffmpeg, os.X_OK)
+        and ffprobe.exists()
+        and os.access(ffprobe, os.X_OK)
+    ):
+        return FFMPEG_BIN_DIR
+
+    return None
+
+def song_deno() -> Path | None:
+    deno = SONG_ROOT / ".tools" / "deno" / "bin" / "deno"
+
+    if deno.exists() and os.access(deno, os.X_OK):
+        return deno
+
+    return None

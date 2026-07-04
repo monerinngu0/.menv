@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 
@@ -25,20 +26,41 @@ FFMPEG_URLS = {
 }
 
 
+DENO_URLS = {
+    "x86_64": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip",
+    "amd64": "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip",
+    "aarch64": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip",
+    "arm64": "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip",
+}
+
+
+def tool_bin_dir(name: str) -> Path:
+    return SONG_ROOT / ".tools" / name / "bin"
+
+
 def ffmpeg_bin_dir() -> Path:
-    return SONG_ROOT / ".tools" / "ffmpeg" / "bin"
+    return tool_bin_dir("ffmpeg")
+
+
+def deno_bin_dir() -> Path:
+    return tool_bin_dir("deno")
+
+
+def is_executable(path: Path) -> bool:
+    return path.exists() and os.access(path, os.X_OK)
 
 
 def has_ffmpeg() -> bool:
     ffmpeg = ffmpeg_bin_dir() / "ffmpeg"
     ffprobe = ffmpeg_bin_dir() / "ffprobe"
 
-    return (
-        ffmpeg.exists()
-        and os.access(ffmpeg, os.X_OK)
-        and ffprobe.exists()
-        and os.access(ffprobe, os.X_OK)
-    )
+    return is_executable(ffmpeg) and is_executable(ffprobe)
+
+
+def has_deno() -> bool:
+    deno = deno_bin_dir() / "deno"
+
+    return is_executable(deno)
 
 
 def install_ffmpeg() -> bool:
@@ -46,7 +68,7 @@ def install_ffmpeg() -> bool:
     url = FFMPEG_URLS.get(arch)
 
     if url is None:
-        print(f"unsupported architecture: {arch}", file=sys.stderr)
+        print(f"unsupported architecture for ffmpeg: {arch}", file=sys.stderr)
         return False
 
     with check.temp_dir() as tmp:
@@ -81,9 +103,75 @@ def install_ffmpeg() -> bool:
     return has_ffmpeg()
 
 
+def is_relative_to(path: Path, base: Path) -> bool:
+    try:
+        path.resolve().relative_to(base.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def safe_extract_zip(archive: Path, dest: Path) -> bool:
+    dest.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            for member in zf.infolist():
+                target = dest / member.filename
+
+                if not is_relative_to(target, dest):
+                    print(f"unsafe zip path: {member.filename}", file=sys.stderr)
+                    return False
+
+            zf.extractall(dest)
+
+        return True
+    except Exception as e:
+        print(f"failed to extract zip: {e}", file=sys.stderr)
+        return False
+
+
+def install_deno() -> bool:
+    arch = platform.machine().lower()
+    url = DENO_URLS.get(arch)
+
+    if url is None:
+        print(f"unsupported architecture for deno: {arch}", file=sys.stderr)
+        return False
+
+    with check.temp_dir() as tmp:
+        tmp_dir = Path(tmp)
+        archive = tmp_dir / "deno.zip"
+        extract_dir = tmp_dir / "extract"
+
+        if not check.download_file(url, archive):
+            print("failed to download deno", file=sys.stderr)
+            return False
+
+        if not safe_extract_zip(archive, extract_dir):
+            return False
+
+        deno_src = check.find_file(extract_dir, "deno")
+
+        if deno_src is None:
+            print("deno not found in archive", file=sys.stderr)
+            return False
+
+        bin_dir = deno_bin_dir()
+        bin_dir.mkdir(parents=True, exist_ok=True)
+
+        shutil.copy2(deno_src, bin_dir / "deno")
+        (bin_dir / "deno").chmod(0o755)
+
+    return has_deno()
+
+
 def has_package(package: str) -> bool:
     if package == "ffmpeg":
         return has_ffmpeg()
+
+    if package == "deno":
+        return has_deno()
 
     return False
 
@@ -91,6 +179,9 @@ def has_package(package: str) -> bool:
 def install_package(package: str) -> bool:
     if package == "ffmpeg":
         return install_ffmpeg()
+
+    if package == "deno":
+        return install_deno()
 
     print(f"unknown song package: {package}", file=sys.stderr)
     return False

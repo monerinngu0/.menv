@@ -1,6 +1,7 @@
 [apt]
 packages = [
   "ffmpeg",
+  "deno",
 ]
 
 [apt-g]
@@ -10,6 +11,7 @@ packages = []
 names = [
   "ffmpeg",
   "ffprobe",
+  "deno",
 ]
 
 [venv]
