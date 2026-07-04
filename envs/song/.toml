@@ -1,0 +1,19 @@
+[apt]
+packages = [
+  "ffmpeg",
+]
+
+[apt-g]
+packages = []
+
+[commands]
+names = [
+  "ffmpeg",
+  "ffprobe",
+]
+
+[venv]
+path = ".venv"
+packages = [
+  "yt-dlp",
+]

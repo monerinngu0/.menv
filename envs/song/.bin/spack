@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+SONG_ROOT="$MENV_ROOT/envs/song"
+
+python3 "$SONG_ROOT/.lib/spack.py" "$@"
