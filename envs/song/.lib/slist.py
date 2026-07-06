@@ -43,10 +43,19 @@ def update_one(category: str) -> int:
 
     files = iter_audio_files(song_dir)
 
+    cat = category_dir(root, category)
+    song_dir = cat / "song"
+
+    songs = [
+        file_info(path, cat)
+        for path in iter_audio_files(song_dir)
+    ]   
+
     data = {
+        "version": 1,
         "category": category,
-        "count": len(files),
-        "songs": [file_info(path, cat) for path in files],
+        "count": len(songs),
+        "songs": songs,
     }
 
     write_json(song_json, data)
