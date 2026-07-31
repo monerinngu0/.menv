@@ -17,7 +17,7 @@ def load_env_routes(menv_root: Path, router: Router) -> None:
     if not envs_dir.is_dir():
         return
 
-    for routes_path in sorted(envs_dir.glob("*/server/routes.py")):
+    for routes_path in sorted(envs_dir.glob("*/.lib/server/routes.py")):
         env_name = routes_path.parents[1].name
         module_name = f"menv_env_{env_name}_routes"
 

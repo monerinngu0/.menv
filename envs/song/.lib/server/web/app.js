@@ -4,9 +4,9 @@ let selectedLibraryFiles = [];
 const $ = (id) => document.getElementById(id);
 
 function setStatus(message, isError = false) {
-    const status = $("status");
-    status.textContent = message;
-    status.className = isError ? "error" : "";
+  const status = $("status");
+  status.textContent = message;
+  status.className = isError ? "error" : "";
 }
 
 async function fetchJson(url, options) {

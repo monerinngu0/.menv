@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>song server</title>
+    <link rel="stylesheet" href="/song/static/style.css">
+</head>
+<body>
+    <main class="shell">
+        <header class="topbar">
+            <div>
+                <h1>song server</h1>
+                <p id="status">Ready</p>
+            </div>
+            <button id="refresh-library" type="button">Refresh library</button>
+        </header>
+
+        <section class="panel">
+            <h2>Add song</h2>
+            <div class="form-grid">
+                <label>
+                    URL
+                    <input id="add-url" placeholder="https://...">
+                </label>
+                <label>
+                    Category
+                    <input id="add-category" value="default">
+                </label>
+                <label class="check">
+                    <input id="add-playlist" type="checkbox">
+                    playlist
+                </label>
+                <button id="add-button" type="button">Add</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Pack all</h2>
+            <div class="form-grid">
+                <label>
+                    Category
+                    <input id="pack-all-category" value="default">
+                </label>
+                <button id="pack-all-button" type="button">Pack all</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Pack diff</h2>
+            <div class="form-grid wide">
+                <label>
+                Category
+                <input id="pack-diff-category" value="default">
+                </label>
+                <label>
+                    Client files JSON
+                    <textarea id="client-files" placeholder='["a.mp3", "b.mp3"]'></textarea>
+                </label>
+                <button id="pack-diff-button" type="button">Pack diff</button>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Pack selected</h2>
+            <div class="form-grid select-tools">
+                <label>
+                    Category
+                    <input id="pack-select-category" value="default">
+                </label>
+                <button id="load-select-library" type="button">Load library</button>
+                <button id="select-all-button" type="button">Select all</button>
+                <button id="clear-select-button" type="button">Clear</button>
+                <button id="pack-selected-button" type="button">Pack selected</button>
+            </div>
+            <div id="select-files" class="select-files"></div>
+        </section>
+
+        <section class="panel">
+            <h2>Library</h2>
+            <div id="library" class="list"></div>
+        </section>
+
+        <section class="panel">
+            <h2>Jobs</h2>
+            <div id="jobs" class="jobs"></div>
+        </section>
+    </main>
+    <script src="/song/static/app.js"></script>
+</body>
+</html>

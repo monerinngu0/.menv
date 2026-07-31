@@ -1,0 +1,187 @@
+:root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --text: #1c2430;
+    --muted: #647184;
+    --line: #d9dee7;
+    --accent: #0f6bff;
+    --accent-dark: #0b55cc;
+    --danger: #c93535;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.shell {
+    width: min(1040px, calc(100% - 32px));
+    margin: 24px auto 48px;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+h1, h2, p {
+    margin: 0;
+}
+
+h1 {
+    font-size: 28px;
+}
+
+h2 {
+    font-size: 18px;
+    margin-bottom: 14px;
+}
+
+#status {
+    margin-top: 4px;
+    color: var(--muted);
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    margin: 14px 0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 180px auto auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.form-grid.wide {
+    grid-template-columns: 180px minmax(260px, 1fr) auto;
+}
+
+.form-grid.select-tools {
+    grid-template-columns: minmax(180px, 1fr) repeat(4, auto);
+}
+
+label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+}
+
+input, textarea, button {
+    font: inherit;
+}
+
+input, textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 9px 10px;
+    background: #fff;
+    color: var(--text);
+}
+
+textarea {
+    min-height: 88px;
+    resize: vertical;
+}
+
+button {
+    border: 0;
+    border-radius: 6px;
+    padding: 10px 14px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    min-height: 38px;
+}
+
+button:hover {
+    background: var(--accent-dark);
+}
+
+.list, .jobs {
+    display: grid;
+    gap: 8px;
+}
+
+.select-files {
+    display: grid;
+    gap: 6px;
+    margin-top: 14px;
+    max-height: 280px;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+.file-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.file-check input {
+    width: auto;
+}
+
+.item, .job {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fbfcfe;
+}
+
+.item-title, .job-title {
+    font-weight: 650;
+}
+
+.meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.error {
+    color: var(--danger);
+}
+
+a {
+    color: var(--accent-dark);
+}
+
+@media (max-width: 760px) {
+    .topbar,
+    .form-grid,
+    .form-grid.wide {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+
+    .topbar {
+        align-items: stretch;
+    }
+}
