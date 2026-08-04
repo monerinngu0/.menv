@@ -157,10 +157,10 @@ def create_contest(contest: str) -> None:
     for label, task_id, url in tasks:
         task_dir = contest_dir / label
         task_dir.mkdir(parents=True, exist_ok=True)
-
-        source = contest_dir / f"{label}.{ext}"
-        if not source.exists():
-            shutil.copyfile(template, source)
+        # File generation
+        # source = contest_dir / f"{label}.{ext}"
+        # if not source.exists():
+        #    shutil.copyfile(template, source)
 
         with tasks_tsv.open("a", encoding="utf-8") as f:
             f.write(f"{label}\t{task_id}\t{url}\n")
@@ -222,10 +222,10 @@ def create_manual_contest(
     for label in labels:
         task_dir = contest_dir / label
         task_dir.mkdir(parents=True, exist_ok=True)
-
-        source = contest_dir / f"{label}.{ext}"
-        if not source.exists():
-            shutil.copyfile(template, source)
+        # File generation
+        # source = contest_dir / f"{label}.{ext}"
+        # if not source.exists():
+        #     shutil.copyfile(template, source)
 
         task_lines.append(f"{label}\t{label}\t\n")
         ok(f"prepared: {label}")

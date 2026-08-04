@@ -43,6 +43,10 @@ def require_oj() -> str:
     return require_command("oj")
 
 
+def require_kbuild() -> str:
+    return require_command("kbuild")
+
+
 def require_gpp() -> str:
     return require_command("g++")
 
@@ -84,6 +88,37 @@ def kyopro_find_source(root: Path, problem: str) -> Path | None:
 
 def kyopro_source_lang(src: Path) -> str | None:
     return SOURCE_EXT_LANG.get(src.suffix)
+
+
+def build_submission(src: Path, output: Path) -> None:
+    kbuild = require_kbuild()
+
+    info(f"building: {src.name} -> {output.name}")
+
+    result = subprocess.run(
+        [
+            kbuild,
+            "--no-compile",
+            "-o",
+            str(output),
+            str(src),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        ng("build failed")
+        print()
+        print(result.stdout, end="")
+        sys.exit(result.returncode)
+
+    if not output.is_file():
+        ng(f"build output not found: {output}")
+        sys.exit(1)
+
+    ok(f"built: {output.name}")
 
 
 def build_cpp(src: Path, exe: Path) -> None:
@@ -265,7 +300,12 @@ def list_cases(problem: str) -> None:
         print(f"{name}	{state}")
 
 
-def test_problem(problem: str) -> None:
+def test_problem(
+    problem: str,
+    *,
+    no_build: bool,
+    output_name: str,
+) -> None:
     oj = require_oj()
 
     root = find_contest_root()
@@ -276,14 +316,14 @@ def test_problem(problem: str) -> None:
     test_dir = root / problem
     exe = root / ".build" / problem
 
-    src = kyopro_find_source(root, problem)
-    if src is None:
+    original_src = kyopro_find_source(root, problem)
+    if original_src is None:
         ng(f"source not found: {root}/{problem}.{{cpp,py}}")
         sys.exit(1)
 
-    lang = kyopro_source_lang(src)
+    lang = kyopro_source_lang(original_src)
     if lang is None:
-        ng(f"unknown source language: {src}")
+        ng(f"unknown source language: {original_src}")
         sys.exit(1)
 
     if not test_dir.is_dir():
@@ -293,7 +333,25 @@ def test_problem(problem: str) -> None:
 
     (root / ".build").mkdir(parents=True, exist_ok=True)
 
-    command = make_command(src, exe, lang)
+    if lang == "cpp":
+        bundled_src = root / output_name
+
+        if no_build:
+            if not bundled_src.is_file():
+                ng(f"built source not found: {bundled_src}")
+                info(f"run without --no-build first: ktest {problem}")
+                sys.exit(1)
+
+            info(f"using existing build: {bundled_src.name}")
+        else:
+            build_submission(original_src, bundled_src)
+
+        command = make_command(bundled_src, exe, "cpp")
+    else:
+        if no_build:
+            info("--no-build has no effect for Python")
+
+        command = make_command(original_src, exe, lang)
 
     info(f"running samples: {problem}")
 
@@ -312,6 +370,18 @@ def test_problem(problem: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="ktest")
     parser.add_argument("problem", help="problem label, e.g. a")
+    parser.add_argument(
+        "--no-build",
+        action="store_true",
+        help="skip kbuild and compile the existing bundled source",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="sol.cpp",
+        metavar="FILE",
+        help="bundled source file name (default: sol.cpp)",
+    )
     action = parser.add_mutually_exclusive_group()
     action.add_argument(
         "--add-case",
@@ -340,8 +410,19 @@ def main() -> None:
     elif args.list_cases:
         list_cases(args.problem)
     else:
-        test_problem(args.problem)
+        output = Path(args.output)
 
+        if output.name != args.output:
+           parser.error("--output must be a file name, not a path")
+
+        if output.suffix != ".cpp":
+            parser.error("--output must have the .cpp extension")
+
+        test_problem(
+            args.problem,
+            no_build=args.no_build,
+            output_name=args.output,
+        )
 
 if __name__ == "__main__":
     main()  
