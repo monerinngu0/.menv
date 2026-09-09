@@ -3,426 +3,592 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
+from types import ModuleType
 
 
-MENV_ROOT = Path(os.environ.get("MENV_ROOT", Path.home() / ".menv"))
+MENV_ROOT = Path(
+    os.environ.get(
+        "MENV_ROOT",
+        Path.home() / ".menv",
+    )
+)
 KYOPRO_ROOT = MENV_ROOT / "envs" / "kyopro"
 
 sys.path.insert(0, str(MENV_ROOT / ".lib"))
 sys.path.insert(0, str(KYOPRO_ROOT / ".lib"))
 
-from common import ok, ng, info  # noqa: E402
+from common import info, ng, ok, warn  # noqa: E402
 
 
-SOURCE_EXT_LANG = {
-    ".cpp": "cpp",
-    ".py": "py",
-}
+LANGUAGE_DIR = Path(
+    os.environ.get(
+        "KTEST_LANGUAGE_DIR",
+        Path(__file__).resolve().parent
+        / "ktest_languages",
+    )
+)
 
-
-def command_path(name: str) -> str | None:
-    return shutil.which(name)
+KSUB_UNAVAILABLE = 69
 
 
 def require_command(name: str) -> str:
-    path = command_path(name)
+    path = shutil.which(name)
+
     if path is None:
         ng(f"{name} not found")
         sys.exit(1)
+
     return path
 
 
-def require_oj() -> str:
-    return require_command("oj")
+def require_clipboard_command() -> str:
+    for name in ("clip", "clip.exe"):
+        path = shutil.which(name)
 
-
-def require_kbuild() -> str:
-    return require_command("kbuild")
-
-
-def require_gpp() -> str:
-    return require_command("g++")
-
-
-def require_python_runtime() -> str:
-    py = os.environ.get("KYOPRO_PYTHON", "python3")
-    return require_command(py)
-
-
-def find_contest_root(start: Path | None = None) -> Path | None:
-    cur = (start or Path.cwd()).resolve()
-
-    while True:
-        if (cur / ".contest").exists():
-            return cur
-
-        if cur.parent == cur:
-            return None
-
-        cur = cur.parent
-
-
-def kyopro_find_source(root: Path, problem: str) -> Path | None:
-    candidates = [
-        root / f"{problem}.cpp",
-        root / f"{problem}.py",
-        root / problem / "main.cpp",
-        root / problem / "main.py",
-        root / problem / f"{problem}.cpp",
-        root / problem / f"{problem}.py",
-    ]
-
-    for path in candidates:
-        if path.exists():
+        if path is not None:
             return path
 
-    return None
-
-
-def kyopro_source_lang(src: Path) -> str | None:
-    return SOURCE_EXT_LANG.get(src.suffix)
-
-
-def build_submission(src: Path, output: Path) -> None:
-    kbuild = require_kbuild()
-
-    info(f"building: {src.name} -> {output.name}")
-
-    result = subprocess.run(
-        [
-            kbuild,
-            "--no-compile",
-            "-o",
-            str(output),
-            str(src),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        ng("build failed")
-        print()
-        print(result.stdout, end="")
-        sys.exit(result.returncode)
-
-    if not output.is_file():
-        ng(f"build output not found: {output}")
-        sys.exit(1)
-
-    ok(f"built: {output.name}")
-
-
-def build_cpp(src: Path, exe: Path) -> None:
-    gpp = require_gpp()
-
-    info(f"compiling: {src.name}")
-
-    result = subprocess.run(
-        [
-            gpp,
-            "-std=c++23",
-            "-O2",
-            "-Wall",
-            "-Wextra",
-            "-o",
-            str(exe),
-            str(src),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        ng("compile failed")
-        print()
-        print(result.stdout, end="")
-        sys.exit(result.returncode)
-
-
-def make_command(src: Path, exe: Path, lang: str) -> str:
-    if lang == "cpp":
-        build_cpp(src, exe)
-        return shlex.quote(str(exe))
-
-    if lang == "py":
-        py = require_python_runtime()
-        info(f"using python runtime: {py}")
-        return shlex.join([py, str(src)])
-
-    ng(f"test is not supported for language: {lang}")
+    ng("clip not found")
     sys.exit(1)
 
 
-def print_oj_log(text: str) -> None:
-    for line in text.splitlines():
-        print(line)
+def copy_to_clipboard(source: Path) -> None:
+    clipboard = require_clipboard_command()
+
+    with source.open("rb") as stream:
+        result = subprocess.run(
+            [clipboard],
+            stdin=stream,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+
+    if result.returncode != 0:
+        ng("failed to copy source to clipboard")
+
+        if result.stdout:
+            print()
+            print(
+                result.stdout.decode(errors="replace"),
+                end="",
+            )
+
+        sys.exit(result.returncode)
+
+    ok(f"copied to clipboard: {source.name}")
 
 
-def extract_cases(output: str) -> str:
-    m = re.search(r"\[INFO\]\s+([0-9]+)\s+cases found", output)
-    if m:
-        return m.group(1)
-
-    return "?"
-
-
-def run_samples(oj: str, command: str, test_dir: Path) -> tuple[int, str]:
-    result = subprocess.run(
-        [
-            oj,
-            "test",
-            "-c",
-            command,
-            "-d",
-            str(test_dir),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    return result.returncode, result.stdout
-
-
-def validate_case_name(name: str) -> str:
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name):
-        ng(f"invalid case name: {name}")
-        info("use only letters, numbers, '_' and '-'")
-        sys.exit(1)
-    return name
-
-
-def next_case_name(test_dir: Path) -> str:
-    index = 1
-    while (test_dir / f"custom-{index}.in").exists() or (test_dir / f"custom-{index}.out").exists():
-        index += 1
-    return f"custom-{index}"
-
-
-def read_case_block(title: str) -> str:
-    print(f"Enter {title}. Finish with a line containing only a single dot (.).")
-    lines: list[str] = []
+def find_contest_root(
+    start: Path | None = None,
+) -> Path | None:
+    current = (start or Path.cwd()).resolve()
 
     while True:
-        try:
-            line = input()
-        except EOFError:
-            break
+        if (current / ".contest").exists():
+            return current
 
-        if line == ".":
-            break
-        lines.append(line)
+        if current.parent == current:
+            return None
 
-    if not lines:
-        return ""
-    return "\n".join(lines) + "\n"
+        current = current.parent
 
 
-def read_case_file(path: str, *, kind: str) -> str:
-    case_path = Path(path)
-    if not case_path.is_file():
-        ng(f"{kind} file not found: {case_path}")
-        sys.exit(1)
-    return case_path.read_text(encoding="utf-8")
+def load_language_module(path: Path) -> ModuleType:
+    module_name = f"ktest_language_{path.stem}"
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        path,
+    )
 
-
-def contest_test_dir(problem: str) -> Path:
-    root = find_contest_root()
-    if root is None:
-        ng(".contest not found")
+    if spec is None or spec.loader is None:
+        ng(f"failed to load language module: {path}")
         sys.exit(1)
 
+    module = importlib.util.module_from_spec(spec)
+
+    try:
+        spec.loader.exec_module(module)
+    except Exception as error:
+        ng(f"failed to load language module: {path}")
+        print(error, file=sys.stderr)
+        sys.exit(1)
+
+    return module
+
+
+def load_language_handlers(
+    directory: Path = LANGUAGE_DIR,
+) -> dict[str, ModuleType]:
+    if not directory.is_dir():
+        ng(f"language directory not found: {directory}")
+        sys.exit(1)
+
+    handlers: dict[str, ModuleType] = {}
+
+    for path in sorted(directory.glob("*.py")):
+        if path.name.startswith("_"):
+            continue
+
+        module = load_language_module(path)
+        extensions = getattr(
+            module,
+            "EXTENSIONS",
+            None,
+        )
+        prepare = getattr(module, "prepare", None)
+
+        if not isinstance(extensions, (set, tuple, list)):
+            ng(f"EXTENSIONS not found: {path}")
+            sys.exit(1)
+
+        if not callable(prepare):
+            ng(f"prepare() not found: {path}")
+            sys.exit(1)
+
+        for extension in extensions:
+            if (
+                not isinstance(extension, str)
+                or not extension.startswith(".")
+            ):
+                ng(f"invalid extension in {path}: {extension}")
+                sys.exit(1)
+
+            if extension in handlers:
+                ng(
+                    "duplicate language handler for "
+                    f"{extension}: {path}"
+                )
+                sys.exit(1)
+
+            handlers[extension] = module
+
+    if not handlers:
+        ng(f"no language handlers found: {directory}")
+        sys.exit(1)
+
+    return handlers
+
+
+def find_source(
+    root: Path,
+    problem: str,
+    extensions: set[str],
+) -> Path | None:
+    bases = [
+        root / problem,
+        root / problem / "main",
+        root / problem / problem,
+    ]
+
+    candidates = [
+        base.with_suffix(extension)
+        for base in bases
+        for extension in sorted(extensions)
+    ]
+    found = [
+        path
+        for path in candidates
+        if path.is_file()
+    ]
+
+    if not found:
+        return None
+
+    if len(found) > 1:
+        ng(f"multiple source files found for problem: {problem}")
+
+        for path in found:
+            print(f"  {path.relative_to(root)}", file=sys.stderr)
+
+        sys.exit(1)
+
+    return found[0]
+
+
+def contest_test_dir(
+    root: Path,
+    problem: str,
+) -> Path:
     test_dir = root / problem
+
     if not test_dir.is_dir():
         ng(f"test directory not found: {test_dir}")
-        print("Run: knew <contest> --manual --problems <problem...>")
         sys.exit(1)
+
     return test_dir
 
 
-def add_case(
+def testcase_number(path: Path) -> int | None:
+    match = re.fullmatch(
+        r"in([1-9][0-9]*)",
+        path.name,
+    )
+
+    if match is None:
+        return None
+
+    return int(match.group(1))
+
+
+def find_testcases(
+    test_dir: Path,
+) -> list[tuple[int, Path, Path]]:
+    cases: list[tuple[int, Path, Path]] = []
+
+    for path in test_dir.iterdir():
+        number = testcase_number(path)
+
+        if number is None:
+            continue
+
+        cases.append(
+            (
+                number,
+                path,
+                test_dir / f"out{number}",
+            )
+        )
+
+    cases.sort(key=lambda case: case[0])
+    return cases
+
+
+def list_cases(
+    root: Path,
     problem: str,
-    case_name: str | None,
-    *,
-    input_file: str | None,
-    output_file: str | None,
-    force: bool,
 ) -> None:
-    test_dir = contest_test_dir(problem)
-    name = validate_case_name(case_name or next_case_name(test_dir))
-    in_path = test_dir / f"{name}.in"
-    out_path = test_dir / f"{name}.out"
+    test_dir = contest_test_dir(root, problem)
+    cases = find_testcases(test_dir)
 
-    if not force and (in_path.exists() or out_path.exists()):
-        ng(f"test case already exists: {name}")
-        info("use --force to overwrite it")
-        sys.exit(1)
-
-    input_text = (
-        read_case_file(input_file, kind="input")
-        if input_file
-        else read_case_block("input")
-    )
-    output_text = (
-        read_case_file(output_file, kind="output")
-        if output_file
-        else read_case_block("expected output")
-    )
-
-    in_path.write_text(input_text, encoding="utf-8")
-    out_path.write_text(output_text, encoding="utf-8")
-    ok(f"added test case: {name}")
-    info(f"input: {in_path}")
-    info(f"output: {out_path}")
-
-
-def list_cases(problem: str) -> None:
-    test_dir = contest_test_dir(problem)
-    names = sorted(path.stem for path in test_dir.glob("*.in"))
-
-    if not names:
+    if not cases:
         info("no test cases")
         return
 
-    for name in names:
-        output = test_dir / f"{name}.out"
-        state = "ok" if output.exists() else "missing .out"
-        print(f"{name}	{state}")
+    for number, _, out_path in cases:
+        state = (
+            "ok"
+            if out_path.is_file()
+            else "missing output"
+        )
+        print(f"{number}\t{state}")
+
+
+def normalize_output(text: str) -> str:
+    text = text.replace("\r\n", "\n").replace(
+        "\r",
+        "\n",
+    )
+    lines = text.split("\n")
+
+    while lines and lines[-1].strip() == "":
+        lines.pop()
+
+    return "\n".join(
+        line.rstrip(" \t")
+        for line in lines
+    )
+
+
+def print_block(title: str, text: str) -> None:
+    print(f"--- {title} ---")
+
+    if text:
+        print(text, end="")
+
+        if not text.endswith("\n"):
+            print()
+
+    print(f"--- end {title} ---")
+
+
+def run_case(
+    command: list[str],
+    *,
+    number: int,
+    in_path: Path,
+    out_path: Path,
+) -> bool:
+    input_text = in_path.read_text(
+        encoding="utf-8",
+    )
+    expected = out_path.read_text(
+        encoding="utf-8",
+    )
+
+    start = time.perf_counter()
+    result = subprocess.run(
+        command,
+        input=input_text,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    elapsed_ms = (
+        time.perf_counter() - start
+    ) * 1000
+
+    if result.returncode != 0:
+        ng(
+            f"case {number}: RE "
+            f"(exit {result.returncode}, "
+            f"{elapsed_ms:.1f} ms)"
+        )
+
+        if result.stderr:
+            print()
+            print_block("stderr", result.stderr)
+
+        return False
+
+    actual_normalized = normalize_output(
+        result.stdout
+    )
+    expected_normalized = normalize_output(
+        expected
+    )
+
+    if actual_normalized == expected_normalized:
+        ok(f"case {number}: AC ({elapsed_ms:.1f} ms)")
+        return True
+
+    ng(f"case {number}: WA ({elapsed_ms:.1f} ms)")
+    print()
+    print_block("expected", expected)
+    print_block("actual", result.stdout)
+
+    if result.stderr:
+        print_block("stderr", result.stderr)
+
+    return False
+
+
+def run_testcases(
+    command: list[str],
+    *,
+    test_dir: Path,
+) -> None:
+    cases = find_testcases(test_dir)
+
+    if not cases:
+        ng(f"no test cases found: {test_dir}")
+        info("expected files: in1/out1, in2/out2, ...")
+        sys.exit(1)
+
+    missing = [
+        number
+        for number, _, out_path in cases
+        if not out_path.is_file()
+    ]
+
+    if missing:
+        for number in missing:
+            ng(f"missing expected output: out{number}")
+
+        sys.exit(1)
+
+    passed = 0
+
+    for number, in_path, out_path in cases:
+        if run_case(
+            command,
+            number=number,
+            in_path=in_path,
+            out_path=out_path,
+        ):
+            passed += 1
+
+    total = len(cases)
+    print()
+
+    if passed != total:
+        ng(f"tests failed ({passed}/{total})")
+        sys.exit(1)
+
+    ok(f"all tests passed ({passed}/{total})")
+
+
+def run_ksub(
+    root: Path,
+    problem: str,
+    submission_source: Path,
+) -> None:
+    ksub = require_command("ksub")
+    info(
+        "passing tested source to ksub: "
+        f"{submission_source}"
+    )
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    result = subprocess.run(
+        [
+            ksub,
+            problem,
+            "--source",
+            str(submission_source),
+        ],
+        cwd=root,
+    )
+
+    if result.returncode == 0:
+        return
+
+    if result.returncode == KSUB_UNAVAILABLE:
+        warn(
+            "ksub could not submit; "
+            "copying the tested source instead"
+        )
+        copy_to_clipboard(submission_source)
+        return
+
+    ng(f"ksub failed (exit {result.returncode})")
+    sys.exit(result.returncode)
 
 
 def test_problem(
     problem: str,
     *,
     no_build: bool,
+    no_submit: bool,
     output_name: str,
 ) -> None:
-    oj = require_oj()
-
     root = find_contest_root()
+
     if root is None:
         ng(".contest not found")
         sys.exit(1)
 
-    test_dir = root / problem
-    exe = root / ".build" / problem
+    test_dir = contest_test_dir(root, problem)
+    handlers = load_language_handlers()
+    source = find_source(
+        root,
+        problem,
+        set(handlers),
+    )
 
-    original_src = kyopro_find_source(root, problem)
-    if original_src is None:
-        ng(f"source not found: {root}/{problem}.{{cpp,py}}")
+    if source is None:
+        ng(f"source not found for problem: {problem}")
         sys.exit(1)
 
-    lang = kyopro_source_lang(original_src)
-    if lang is None:
-        ng(f"unknown source language: {original_src}")
+    handler = handlers[source.suffix]
+    build_dir = root / ".build" / problem
+    prepared = handler.prepare(
+        source,
+        build_dir,
+        no_build=no_build,
+        output_name=output_name,
+    )
+
+    if (
+        not isinstance(prepared, tuple)
+        or len(prepared) != 2
+    ):
+        ng(
+            "language prepare() must return "
+            "(command, submission_source)"
+        )
         sys.exit(1)
 
-    if not test_dir.is_dir():
-        ng(f"test directory not found: {test_dir}")
-        print("Run: knew <contest>")
+    command, submission_source = prepared
+
+    if not isinstance(command, list) or not command:
+        ng("language prepare() returned an invalid command")
         sys.exit(1)
 
-    (root / ".build").mkdir(parents=True, exist_ok=True)
+    submission_source = Path(
+        submission_source
+    ).resolve()
 
-    if lang == "cpp":
-        bundled_src = root / output_name
+    if not submission_source.is_file():
+        ng(
+            "submission source not found: "
+            f"{submission_source}"
+        )
+        sys.exit(1)
 
-        if no_build:
-            if not bundled_src.is_file():
-                ng(f"built source not found: {bundled_src}")
-                info(f"run without --no-build first: ktest {problem}")
-                sys.exit(1)
+    info(f"running tests: {problem}")
+    run_testcases(
+        command,
+        test_dir=test_dir,
+    )
 
-            info(f"using existing build: {bundled_src.name}")
-        else:
-            build_submission(original_src, bundled_src)
+    if no_submit:
+        return
 
-        command = make_command(bundled_src, exe, "cpp")
-    else:
-        if no_build:
-            info("--no-build has no effect for Python")
-
-        command = make_command(original_src, exe, lang)
-
-    info(f"running samples: {problem}")
-
-    status, out = run_samples(oj, command, test_dir)
-
-    if status == 0:
-        cases = extract_cases(out)
-        ok(f"sample tests passed ({cases} cases)")
-    else:
-        ng("sample tests failed")
-        print()
-        print_oj_log(out)
-        sys.exit(status)
+    run_ksub(
+        root,
+        problem,
+        submission_source,
+    )
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="ktest")
-    parser.add_argument("problem", help="problem label, e.g. a")
+    parser = argparse.ArgumentParser(
+        prog="ktest",
+        description=(
+            "Build, test, and hand a competitive "
+            "programming solution to ksub."
+        ),
+    )
+    parser.add_argument(
+        "problem",
+        help="problem label, e.g. a, ex, or f2",
+    )
     parser.add_argument(
         "--no-build",
         action="store_true",
-        help="skip kbuild and compile the existing bundled source",
+        help=(
+            "reuse language-specific build artifacts "
+            "when supported"
+        ),
+    )
+    parser.add_argument(
+        "--no-submit",
+        action="store_true",
+        help="stop after all sample cases pass",
     )
     parser.add_argument(
         "-o",
         "--output",
         default="sol.cpp",
         metavar="FILE",
-        help="bundled source file name (default: sol.cpp)",
+        help=(
+            "language-specific submission output name "
+            "(C++ default: sol.cpp)"
+        ),
     )
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument(
-        "--add-case",
-        nargs="?",
-        const="",
-        metavar="NAME",
-        help="add an interactive or file-based custom test case",
+    parser.add_argument(
+        "--list-cases",
+        action="store_true",
+        help="list sample cases without building",
     )
-    action.add_argument("--list-cases", action="store_true", help="list test cases")
-    parser.add_argument("--input-file", help="read custom test input from a file")
-    parser.add_argument("--output-file", help="read expected output from a file")
-    parser.add_argument("-f", "--force", action="store_true", help="overwrite a custom case")
+
     args = parser.parse_args()
+    root = find_contest_root()
 
-    if args.add_case is None and (args.input_file or args.output_file or args.force):
-        parser.error("--input-file, --output-file, and --force require --add-case")
+    if root is None:
+        ng(".contest not found")
+        sys.exit(1)
 
-    if args.add_case is not None:
-        add_case(
-            args.problem,
-            args.add_case or None,
-            input_file=args.input_file,
-            output_file=args.output_file,
-            force=args.force,
-        )
-    elif args.list_cases:
-        list_cases(args.problem)
-    else:
-        output = Path(args.output)
+    if args.list_cases:
+        list_cases(root, args.problem)
+        return
 
-        if output.name != args.output:
-           parser.error("--output must be a file name, not a path")
+    test_problem(
+        args.problem,
+        no_build=args.no_build,
+        no_submit=args.no_submit,
+        output_name=args.output,
+    )
 
-        if output.suffix != ".cpp":
-            parser.error("--output must have the .cpp extension")
-
-        test_problem(
-            args.problem,
-            no_build=args.no_build,
-            output_name=args.output,
-        )
 
 if __name__ == "__main__":
-    main()  
+    main()

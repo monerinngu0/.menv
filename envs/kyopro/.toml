@@ -17,4 +17,10 @@ path = ".venv"
 packages = [
   "setuptools",
   "online-judge-tools",
+  "online-judge-api-client @ git+https://github.com/online-judge-tools/api-client.git",
+]
+
+[update]
+pip = [
+  "online-judge-tools",
 ]
