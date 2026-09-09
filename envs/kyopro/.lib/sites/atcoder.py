@@ -1,297 +1,279 @@
-# sites/atcoder.py
-
 from __future__ import annotations
 
 import re
 import shutil
 import subprocess
-import sys
-import urllib.request
+import tempfile
 from pathlib import Path
-from urllib.parse import urlparse
 
-from common import info, ng, run_quiet
+import requests
+from bs4 import BeautifulSoup
 
-from .base import Problem, Task
-
-
-ATCODER_HOSTS = {
-    "atcoder.jp",
-    "www.atcoder.jp",
-}
-
-NAME_PATTERN = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_-]*"
+from contest import Problem
+from sites import (
+    SiteError,
+    SubmitResult,
 )
 
 
-def fail(message: str) -> None:
-    ng(message)
-    sys.exit(1)
+NAME = "atcoder"
+BASE_URL = "https://atcoder.jp"
+
+TASK_HREF_PATTERN = re.compile(
+    r"^/contests/([^/]+)/tasks/([^/]+)$"
+)
 
 
-def validate_name(
-    value: str,
-    *,
-    kind: str,
+def contest_url(
+    contest_id: str,
 ) -> str:
-    if not NAME_PATTERN.fullmatch(value):
-        fail(f"invalid {kind} name: {value}")
-
-    return value
-
-
-def require_command(name: str) -> str:
-    path = shutil.which(name)
-
-    if path is None:
-        fail(f"{name} not found")
-
-    return path
-
-
-def require_oj_login(oj: str) -> None:
-    result = subprocess.run(
-        [
-            oj,
-            "login",
-            "--check",
-            "https://atcoder.jp/",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+    return (
+        f"{BASE_URL}/contests/{contest_id}"
     )
 
-    if result.returncode != 0:
-        ng("AtCoder login required")
-        info("run: oj login https://atcoder.jp/")
-        sys.exit(1)
+
+def tasks_url(
+    contest_id: str,
+) -> str:
+    return (
+        f"{contest_url(contest_id)}/tasks"
+    )
 
 
-def normalize_testcases(directory: Path) -> None:
-    for path in directory.iterdir():
-        match = re.fullmatch(
-            r"sample-(\d+)\.(in|out)",
-            path.name,
+def problem_url(
+    contest_id: str,
+    problem_id: str,
+) -> str:
+    return (
+        f"{contest_url(contest_id)}"
+        f"/tasks/{problem_id}"
+    )
+
+
+def fetch_problems(
+    contest_id: str,
+) -> tuple[Problem, ...]:
+    url = tasks_url(contest_id)
+
+    try:
+        response = requests.get(
+            url,
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as error:
+        raise SiteError(
+            f"failed to fetch contest: {url}"
+        ) from error
+
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser",
+    )
+
+    problems: list[Problem] = []
+    seen: set[str] = set()
+
+    for row in soup.select("table tbody tr"):
+        anchors = row.find_all(
+            "a",
+            href=True,
+        )
+
+        if not anchors:
+            continue
+
+        anchor = anchors[0]
+        href = anchor["href"]
+
+        if not isinstance(href, str):
+            continue
+
+        match = TASK_HREF_PATTERN.fullmatch(
+            href
         )
 
         if match is None:
             continue
 
-        number, kind = match.groups()
+        href_contest_id = match.group(1)
+        problem_id = match.group(2)
 
-        if kind == "in":
-            new_name = f"in{number}"
-        else:
-            new_name = f"out{number}"
+        if href_contest_id != contest_id:
+            continue
 
-        new_path = directory / new_name
+        if problem_id in seen:
+            continue
 
-        if new_path.exists():
-            fail(f"test case already exists: {new_path}")
+        label = anchor.get_text(
+            strip=True
+        ).lower()
 
-        path.rename(new_path)
+        if not label:
+            continue
 
+        seen.add(problem_id)
 
-class AtCoderSite:
-    name = "atcoder"
-
-    def contest_url(self, contest_id: str) -> str:
-        contest_id = validate_name(
-            contest_id,
-            kind="contest",
+        problems.append(
+            Problem(
+                label=label,
+                id=problem_id,
+                url=f"{BASE_URL}{href}",
+            )
         )
 
-        return (
-            "https://atcoder.jp/"
-            f"contests/{contest_id}"
+    if not problems:
+        raise SiteError(
+            f"no problems found: {url}"
         )
 
-    def fetch_tasks(
-        self,
-        contest_id: str,
-    ) -> list[Task]:
-        contest_id = validate_name(
-            contest_id,
-            kind="contest",
+    return tuple(problems)
+
+
+def download_testcases(
+    problem: Problem,
+    destination: Path,
+) -> None:
+    oj = shutil.which("oj")
+
+    if oj is None:
+        raise SiteError(
+            "oj not found"
         )
 
-        url = (
-            "https://atcoder.jp/"
-            f"contests/{contest_id}/tasks"
-        )
+    destination = destination.resolve()
 
-        try:
-            html = (
-                urllib.request
-                .urlopen(url)
-                .read()
-                .decode(
-                    "utf-8",
-                    errors="ignore",
-                )
-            )
-        except Exception as e:
-            fail(
-                f"failed to fetch tasks page: {e}"
-            )
+    destination.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-        ids: list[str] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
 
-        pattern = (
-            rf"/contests/{re.escape(contest_id)}"
-            rf"/tasks/([^\"?#]+)"
-        )
-
-        for match in re.finditer(pattern, html):
-            task_id = match.group(1)
-
-            if task_id not in ids:
-                ids.append(task_id)
-
-        tasks: list[Task] = []
-
-        for task_id in ids:
-            if task_id.startswith(
-                contest_id + "_"
-            ):
-                label = task_id[
-                    len(contest_id) + 1:
-                ]
-            else:
-                label = task_id
-
-            task_url = (
-                "https://atcoder.jp/"
-                f"contests/{contest_id}/"
-                f"tasks/{task_id}"
-            )
-
-            tasks.append(
-                Task(
-                    label=label,
-                    task_id=task_id,
-                    url=task_url,
-                )
-            )
-
-        return tasks
-
-    def parse_problem(
-        self,
-        value: str,
-    ) -> Problem:
-        value = value.strip()
-        parsed = urlparse(value)
-
-        if parsed.scheme or parsed.netloc:
-            if parsed.scheme not in {
-                "http",
-                "https",
-            }:
-                fail(
-                    "unsupported URL scheme: "
-                    f"{parsed.scheme}"
-                )
-
-            if (
-                parsed.netloc.lower()
-                not in ATCODER_HOSTS
-            ):
-                fail(
-                    "unsupported site: "
-                    f"{parsed.netloc}"
-                )
-
-            parts = [
-                part
-                for part
-                in parsed.path.split("/")
-                if part
-            ]
-
-            if (
-                len(parts) != 4
-                or parts[0] != "contests"
-                or parts[2] != "tasks"
-            ):
-                fail(
-                    "invalid AtCoder problem URL: "
-                    f"{value}"
-                )
-
-            contest_id = validate_name(
-                parts[1],
-                kind="contest",
-            )
-
-            task_id = validate_name(
-                parts[3],
-                kind="problem",
-            )
-
-            url = (
-                "https://atcoder.jp/"
-                f"contests/{contest_id}/"
-                f"tasks/{task_id}"
-            )
-
-            return Problem(
-                contest_id=contest_id,
-                task_id=task_id,
-                url=url,
-            )
-
-        task_id = validate_name(
-            value,
-            kind="problem",
-        )
-
-        if "_" not in task_id:
-            fail(
-                "cannot infer the contest "
-                "from the task ID; "
-                "pass the full AtCoder "
-                "problem URL"
-            )
-
-        contest_id = task_id.split(
-            "_",
-            1,
-        )[0]
-
-        url = (
-            "https://atcoder.jp/"
-            f"contests/{contest_id}/"
-            f"tasks/{task_id}"
-        )
-
-        return Problem(
-            contest_id=contest_id,
-            task_id=task_id,
-            url=url,
-        )
-
-    def download_samples(
-        self,
-        task_url: str,
-        directory: Path,
-    ) -> None:
-        oj = require_command("oj")
-        require_oj_login(oj)
-
-        downloaded = run_quiet(
-            "downloading samples",
+        completed = subprocess.run(
             [
                 oj,
                 "download",
-                task_url,
-                "-d",
-                str(directory),
+                problem.url,
             ],
+            cwd=tmp_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
 
-        if not downloaded:
-            fail("failed to download samples")
+        if completed.returncode != 0:
+            raise SiteError(
+                f"failed to download testcases: "
+                f"{problem.label}\n"
+                f"{completed.stdout}"
+            )
 
-        normalize_testcases(directory)
+        _move_oj_testcases(
+            tmp_path,
+            destination,
+        )
+
+
+def _move_oj_testcases(
+    source_root: Path,
+    destination: Path,
+) -> None:
+    test_dir = source_root / "test"
+
+    if not test_dir.is_dir():
+        raise SiteError(
+            "oj test directory not found"
+        )
+
+    inputs = sorted(
+        test_dir.glob("sample-*.in"),
+        key=_sample_number,
+    )
+
+    if not inputs:
+        raise SiteError(
+            "no sample testcases downloaded"
+        )
+
+    for index, input_path in enumerate(
+        inputs,
+        start=1,
+    ):
+        output_path = input_path.with_suffix(
+            ".out"
+        )
+
+        if not output_path.is_file():
+            raise SiteError(
+                f"sample output not found: "
+                f"{output_path.name}"
+            )
+
+        shutil.copyfile(
+            input_path,
+            destination / f"in{index}",
+        )
+
+        shutil.copyfile(
+            output_path,
+            destination / f"out{index}",
+        )
+
+
+def _sample_number(
+    path: Path,
+) -> int:
+    match = re.fullmatch(
+        r"sample-([0-9]+)\.in",
+        path.name,
+    )
+
+    if match is None:
+        return 10**9
+
+    return int(match.group(1))
+
+
+def submit(
+    problem: Problem,
+    source: Path,
+) -> SubmitResult:
+    oj = shutil.which("oj")
+
+    if oj is None:
+        raise SiteError(
+            "oj not found"
+        )
+
+    source = source.resolve()
+
+    if not source.is_file():
+        raise SiteError(
+            f"submission source not found: "
+            f"{source}"
+        )
+
+    completed = subprocess.run(
+        [
+            oj,
+            "submit",
+            "--yes",
+            problem.url,
+            str(source),
+        ]
+    )
+
+    if completed.returncode != 0:
+        return SubmitResult(
+            success=False,
+            returncode=completed.returncode,
+            message="AtCoder submission failed",
+        )
+
+    return SubmitResult(
+        success=True,
+        returncode=0,
+        message="submitted to AtCoder",
+    )
