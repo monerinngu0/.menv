@@ -19,3 +19,8 @@ path = ".venv"
 packages = [
   "yt-dlp",
 ]
+
+[update]
+pip = [
+  "yt-dlp",
+]

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
+import re
+import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
@@ -41,6 +44,14 @@ class CheckResult:
     @property
     def success(self) -> bool:
         return self.ng == 0
+
+
+def parse_pip_spec(spec: str) -> tuple[str, str, bool]:
+    if " @ " in spec:
+        name, _ = spec.split(" @ ", 1)
+        return name.strip(), spec, True
+
+    return spec, spec, False
 
 
 def env_path(name: str | None) -> Path:
@@ -120,6 +131,10 @@ def list_of_strings(conf: dict[str, Any], section: str, key: str) -> list[str]:
         return []
 
     return [str(x) for x in value]
+
+
+def normalize_package_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def load_plugin_packages(env: Path) -> ModuleType | None:
@@ -344,42 +359,180 @@ def check_venv(
             info(f"install: mcheck {display_name(env)} --install")
 
     for pkg in packages:
-        if check.pip_package_exists(venv_path, pkg):
-            ok(f"pip: {pkg}")
+        name, install_spec, is_direct = parse_pip_spec(pkg)
+
+        installed = check.pip_package_exists(venv_path, name)
+
+        if installed and not (install and is_direct):
+            ok(f"pip: {name}")
             result.add(True)
             continue
 
-        ng(f"pip: {pkg}")
-        result.add(False)
+        if not installed:
+            ng(f"pip: {name}")
+            result.add(False)
 
         if not check.venv_exists(venv_path):
-            info(f"venv is missing, cannot install pip package yet: {pkg}")
+            info(f"venv is missing, cannot install pip package yet: {name}")
             continue
 
         if install:
             success = run_quiet(
-                f"installing pip: {pkg}",
+                f"installing pip: {name}",
                 [
                     str(venv_path / "bin" / "python"),
                     "-m",
                     "pip",
                     "install",
                     "-U",
-                    pkg,
+                install_spec,
                 ],
             )
 
-            if success and check.pip_package_exists(venv_path, pkg):
-                ok(f"installed pip: {pkg}")
-                result.fix()
+            if success and check.pip_package_exists(venv_path, name):
+                if installed:
+                    ok(f"updated pip: {name}")
+                    result.add(True)
+                else:
+                    ok(f"installed pip: {name}")
+                    result.fix()
             else:
-                ng(f"failed to install pip: {pkg}")
+                ng(f"failed to install pip: {name}")
+                if installed:
+                    result.add(False)
         else:
-            info(f"install: mcheck {display_name(env)} --install")
+            if installed:
+                ok(f"pip: {name}")
+                result.add(True)
+            else:
+                info(f"install: mcheck {display_name(env)} --install")    
 
-    print()
+        print()
 
     return venv_rel
+
+
+def find_outdated_pip_packages(
+    venv_path: Path,
+) -> tuple[dict[str, tuple[str, str]] | None, str]:
+    command = [
+        str(venv_path / "bin" / "python"),
+        "-m",
+        "pip",
+        "list",
+        "--outdated",
+        "--format=json",
+        "--disable-pip-version-check",
+    ]
+
+    completed = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    if completed.returncode != 0:
+        error = completed.stderr.strip().splitlines()
+        return None, error[-1] if error else "pip command failed"
+
+    try:
+        entries = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None, "pip returned invalid JSON"
+
+    outdated: dict[str, tuple[str, str]] = {}
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
+        name = entry.get("name")
+        current = entry.get("version")
+        latest = entry.get("latest_version")
+
+        if not all(isinstance(x, str) for x in (name, current, latest)):
+            continue
+
+        outdated[normalize_package_name(name)] = (current, latest)
+
+    return outdated, ""
+
+
+def check_updates(
+    env: Path,
+    conf: dict[str, Any],
+    *,
+    venv_rel: str,
+    install: bool,
+    result: CheckResult,
+) -> None:
+    packages = list_of_strings(conf, "update", "pip")
+
+    if not packages:
+        return
+
+    print("updates:")
+
+    venv_path = env / venv_rel
+
+    if not check.venv_exists(venv_path):
+        ng(f"pip update check: venv not found: {venv_rel}")
+        result.add(False)
+        print()
+        return
+
+    outdated, error = find_outdated_pip_packages(venv_path)
+
+    if outdated is None:
+        ng("pip update check failed")
+        warn(error)
+        result.add(False)
+        print()
+        return
+
+    for pkg in packages:
+        if not check.pip_package_exists(venv_path, pkg):
+            ng(f"pip update: package not installed: {pkg}")
+            result.add(False)
+            info(f"install: mcheck {display_name(env)} --install")
+            continue
+
+        versions = outdated.get(normalize_package_name(pkg))
+
+        if versions is None:
+            ok(f"pip update: {pkg} is up to date")
+            result.add(True)
+            continue
+
+        current, latest = versions
+
+        if not install:
+            ng(f"pip update: {pkg} {current} -> {latest}")
+            result.add(False)
+            info(f"update: mcheck {display_name(env)} --install")
+            continue
+
+        success = run_quiet(
+            f"updating pip: {pkg} {current} -> {latest}",
+            [
+                str(venv_path / "bin" / "python"),
+                "-m",
+                "pip",
+                "install",
+                "-U",
+                pkg,
+            ],
+        )
+
+        if success:
+            ok(f"updated pip: {pkg} {current} -> {latest}")
+            result.add(True)
+        else:
+            ng(f"failed to update pip: {pkg}")
+            result.add(False)
+
+    print()
 
 
 def check_commands(
@@ -425,6 +578,13 @@ def check_env(env: Path, *, install: bool = False) -> bool:
     check_local_packages(env, conf, install=install, result=result)
     check_global_packages(conf, install=install, result=result)
     venv_rel = check_venv(env, conf, install=install, result=result)
+    check_updates(
+        env,
+        conf,
+        venv_rel=venv_rel,
+        install=install,
+        result=result,
+    )
     check_commands(env, conf, venv_rel=venv_rel, result=result)
 
     print("summary:")
