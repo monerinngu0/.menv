@@ -66,10 +66,11 @@ def download_testcases(
 def create_contest(
     contest_id: str,
     *,
+    site_name: str,
     destination: Path,
     download_samples: bool,
 ) -> Path:
-    site = get_site("atcoder")
+    site = get_site(site_name)
 
     contest_id = contest_id.strip()
 
@@ -109,7 +110,7 @@ def create_contest(
     contest = Contest(
         root=root,
         version=CONTEST_VERSION,
-        site="atcoder",
+        site=site_name,
         id=contest_id,
         url=site.contest_url(
             contest_id
@@ -144,7 +145,7 @@ def main() -> None:
         "contest",
         help=(
             "AtCoder contest id, "
-            "e.g. abc001"
+            "e.g. abc001 or 1125"
         ),
     )
 
@@ -170,10 +171,26 @@ def main() -> None:
         ),
     )
 
+    parser.add_argument(
+        "--site",
+        default=None,
+        metavar="SITE",
+        help=(
+            "contest site "
+            "(default: config defaults.site)"
+        ),
+    )
+
     args = parser.parse_args()
 
     try:
         config = load_config()
+
+        site_name = (
+            args.site
+            if args.site is not None
+            else config.defaults.site
+        )
 
         download_samples = (
             args.download
@@ -183,11 +200,13 @@ def main() -> None:
 
         root = create_contest(
             args.contest,
+            site_name=site_name,
             destination=args.directory,
             download_samples=download_samples,
         )
 
     except (
+        ConfigError,
         ContestError,
         KnewError,
         SiteError,

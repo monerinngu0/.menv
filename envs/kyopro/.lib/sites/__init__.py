@@ -22,6 +22,7 @@ class SubmitResult:
 
 SITE_MODULES = {
     "atcoder": "sites.atcoder",
+    "codeforces": "sites.codeforces",
     "local": "sites.local",
 }
 
