@@ -413,6 +413,7 @@ def main() -> None:
 
     except (
         BuildError,
+        ConfigError,
         ContestError,
         KsubError,
         LanguageError,

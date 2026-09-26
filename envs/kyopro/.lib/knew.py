@@ -144,8 +144,8 @@ def main() -> None:
     parser.add_argument(
         "contest",
         help=(
-            "AtCoder contest id, "
-            "e.g. abc001 or 1125"
+            "Contest id, "
+            "e.g. abc001 or 2267"
         ),
     )
 

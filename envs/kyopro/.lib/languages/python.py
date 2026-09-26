@@ -1,19 +1,15 @@
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
+from config import load_config
+from languages.command import render_command
 
 EXTENSIONS = {".py"}
 SUBMISSION_FILENAME = "sol.py"
 
 ATCODER_LANGUAGE = "CPython"
-
-PYTHON = os.environ.get(
-    "KYOPRO_PYTHON",
-    "python3",
-)
 
 
 def compile(
