@@ -28,6 +28,7 @@ def compile(
 
 def run_command(
     source: Path,
+    executable: Path,
 ) -> tuple[str, ...]:
     return (
         PYTHON,

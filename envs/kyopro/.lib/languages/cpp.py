@@ -4,6 +4,12 @@ import re
 import subprocess
 from pathlib import Path
 
+from config import load_config
+from languages.command import (
+    CommandError,
+    render_command,
+)
+
 
 EXTENSIONS = {".cpp"}
 SUBMISSION_FILENAME = "sol.cpp"
@@ -33,10 +39,15 @@ def compile(
         exist_ok=True,
     )
 
-    command = [
-        "g++",
-        "-std=gnu++23",
-    ]
+    config = load_config()
+
+    command = list(
+        render_command(
+            config.cpp.build_command,
+            source=source,
+            output=output,
+        )
+    )
 
     for directory in include_dirs:
         command.extend(
@@ -46,15 +57,9 @@ def compile(
             ]
         )
 
-    command.extend(
-        [
-            str(source),
-            "-o",
-            str(output),
-        ]
+    completed = subprocess.run(
+        command
     )
-
-    completed = subprocess.run(command)
 
     if completed.returncode != 0:
         raise CppError(
@@ -65,6 +70,7 @@ def compile(
 
 
 def run_command(
+    source: Path,
     executable: Path,
 ) -> tuple[str, ...]:
     return (

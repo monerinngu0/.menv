@@ -70,7 +70,8 @@ def compile_source(
         ) from error
 
     return language.run_command(
-        built
+        source,
+        built,
     )
 
 
