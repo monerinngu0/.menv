@@ -4,6 +4,7 @@ from pathlib import Path
 from types import ModuleType
 
 from . import cpp
+from . import python
 
 
 class LanguageError(Exception):
@@ -12,20 +13,20 @@ class LanguageError(Exception):
 
 LANGUAGES = (
     cpp,
+    python,
 )
 
 
 def get_language(
     source: Path,
 ) -> ModuleType:
-    extension = source.suffix.lower()
-
     for language in LANGUAGES:
-        if extension in language.EXTENSIONS:
+        if source.suffix in language.EXTENSIONS:
             return language
 
     raise LanguageError(
-        f"unsupported source extension: {extension}"
+        f"unsupported source language: "
+        f"{source.suffix}"
     )
 
 

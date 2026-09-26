@@ -1,0 +1,596 @@
+[1mdiff --git a/.bin/rad b/.bin/rad[m
+[1mnew file mode 120000[m
+[1mindex 0000000..cb37e2b[m
+[1m--- /dev/null[m
+[1m+++ b/.bin/rad[m
+[36m@@ -0,0 +1 @@[m
+[32m+[m[32m/home/i2611433/.bin/rad/build/rad[m
+\ No newline at end of file[m
+[1mdiff --git a/.lib/common.py b/.lib/common.py[m
+[1mindex 2b62c1d..c417bdf 100644[m
+[1m--- a/.lib/common.py[m
+[1m+++ b/.lib/common.py[m
+[36m@@ -1,10 +1,14 @@[m
+ from __future__ import annotations[m
+ [m
+ import subprocess[m
+[32m+[m[32mimport sys[m
+ import tempfile[m
+[32m+[m[32mimport threading[m
+ import time[m
+[32m+[m[32mfrom collections.abc import Callable, Sequence[m
+ from pathlib import Path[m
+[31m-from collections.abc import Sequence[m
+[32m+[m[32mfrom typing import TypeVar[m
+[32m+[m
+ [m
+ GREEN = "\033[32m"[m
+ RED = "\033[31m"[m
+[36m@@ -12,13 +16,15 @@[m [mYELLOW = "\033[33m"[m
+ BLUE = "\033[34m"[m
+ RESET = "\033[0m"[m
+ [m
+[32m+[m[32mT = TypeVar("T")[m
+[32m+[m
+ [m
+ def ok(msg: str) -> None:[m
+     print(f"{GREEN}[OK]{RESET}   {msg}")[m
+ [m
+ [m
+ def ng(msg: str) -> None:[m
+[31m-    print(f"{RED}[NG]{RESET}   {msg}")[m
+[32m+[m[32m    print(f"{RED}[NG]{RESET}   {msg}", file=sys.stderr)[m
+ [m
+ [m
+ def warn(msg: str) -> None:[m
+[36m@@ -28,64 +34,106 @@[m [mdef warn(msg: str) -> None:[m
+ def info(msg: str) -> None:[m
+     print(f"{BLUE}[INFO]{RESET} {msg}")[m
+ [m
+[32m+[m
+ def skip(msg: str) -> None:[m
+     print(f"{YELLOW}[SKIP]{RESET} {msg}")[m
+ [m
+ [m
+[31m-def run_quiet(message: str, cmd: Sequence[str], *, cwd: str | Path | None = None) -> bool:[m
+[31m-    with tempfile.NamedTemporaryFile("w+", delete=False) as f:[m
+[31m-        log_path = Path(f.name)[m
+[32m+[m[32mdef fail(message: str, *, code: int = 1) -> None:[m
+[32m+[m[32m    ng(message)[m
+[32m+[m[32m    raise SystemExit(code)[m
+ [m
+[31m-    print(message, end="", flush=True)[m
+ [m
+[31m-    with log_path.open("w") as log:[m
+[31m-        proc = subprocess.Popen([m
+[31m-            list(cmd),[m
+[31m-            stdout=log,[m
+[31m-            stderr=subprocess.STDOUT,[m
+[31m-            cwd=cwd,[m
+[31m-        )[m
+[32m+[m[32mdef run_quiet([m
+[32m+[m[32m    message: str,[m
+[32m+[m[32m    cmd: Sequence[str],[m
+[32m+[m[32m    *,[m
+[32m+[m[32m    cwd: str | Path | None = None,[m
+[32m+[m[32m) -> bool:[m
+[32m+[m[32m    with tempfile.NamedTemporaryFile([m
+[32m+[m[32m        mode="w+",[m
+[32m+[m[32m        delete=False,[m
+[32m+[m[32m        encoding="utf-8",[m
+[32m+[m[32m    ) as file:[m
+[32m+[m[32m        log_path = Path(file.name)[m
+ [m
+[31m-    dots = 0[m
+[31m-    while proc.poll() is None:[m
+[31m-        time.sleep(0.5)[m
+[31m-        print(".", end="", flush=True)[m
+[31m-        dots += 1[m
+[32m+[m[32m    print(message, end="", flush=True)[m
+ [m
+[31m-        if dots >= 6:[m
+[31m-            print(f"\r{message}      \r{message}", end="", flush=True)[m
+[31m-            dots = 0[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        with log_path.open([m
+[32m+[m[32m            "w",[m
+[32m+[m[32m            encoding="utf-8",[m
+[32m+[m[32m            errors="replace",[m
+[32m+[m[32m        ) as log:[m
+[32m+[m[32m            proc = subprocess.Popen([m
+[32m+[m[32m                list(cmd),[m
+[32m+[m[32m                stdout=log,[m
+[32m+[m[32m                stderr=subprocess.STDOUT,[m
+[32m+[m[32m                cwd=cwd,[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        dots = 0[m
+[32m+[m
+[32m+[m[32m        while proc.poll() is None:[m
+[32m+[m[32m            time.sleep(0.5)[m
+[32m+[m[32m            dots += 1[m
+[32m+[m
+[32m+[m[32m            print([m
+[32m+[m[32m                "\r"[m
+[32m+[m[32m                + message[m
+[32m+[m[32m                + "." * dots[m
+[32m+[m[32m                + " " * (6 - dots),[m
+[32m+[m[32m                end="",[m
+[32m+[m[32m                flush=True,[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m            if dots >= 6:[m
+[32m+[m[32m                dots = 0[m
+[32m+[m
+[32m+[m[32m        status = proc.wait()[m
+[32m+[m
+[32m+[m[32m        if status == 0:[m
+[32m+[m[32m            print(f"\r{message} done{' ' * 6}")[m
+[32m+[m[32m            return True[m
+[32m+[m
+[32m+[m[32m        print(f"\r{message} failed{' ' * 6}")[m
+[32m+[m[32m        ng("command failed")[m
+[32m+[m
+[32m+[m[32m        print("---- log ----")[m
+[32m+[m[32m        print([m
+[32m+[m[32m            log_path.read_text([m
+[32m+[m[32m                encoding="utf-8",[m
+[32m+[m[32m                errors="replace",[m
+[32m+[m[32m            ),[m
+[32m+[m[32m            end="",[m
+[32m+[m[32m        )[m
+[32m+[m[32m        print("-------------")[m
+ [m
+[31m-    status = proc.wait()[m
+[32m+[m[32m        return False[m
+ [m
+[31m-    if status == 0:[m
+[31m-        print(f"\r{message} done")[m
+[32m+[m[32m    finally:[m
+         log_path.unlink(missing_ok=True)[m
+[31m-        return True[m
+ [m
+[31m-    print(f"\r{message} failed")[m
+[31m-    ng("command failed")[m
+[31m-    print("---- log ----")[m
+[31m-    print(log_path.read_text(errors="replace"), end="")[m
+[31m-    print("-------------")[m
+[31m-    log_path.unlink(missing_ok=True)[m
+[31m-    return False[m
+[31m-[m
+[31m-def run_quiet_func(message: str, func):[m
+[31m-    import threading[m
+ [m
+[32m+[m[32mdef run_quiet_func([m
+[32m+[m[32m    message: str,[m
+[32m+[m[32m    func: Callable[[], T],[m
+[32m+[m[32m) -> T:[m
+     done = threading.Event()[m
+[31m-    result = {}[m
+[32m+[m[32m    result: dict[str, object] = {}[m
+ [m
+     def worker() -> None:[m
+         try:[m
+             result["value"] = func()[m
+[31m-        except BaseException as e:[m
+[31m-            result["error"] = e[m
+[32m+[m[32m        except BaseException as error:[m
+[32m+[m[32m            result["error"] = error[m
+         finally:[m
+             done.set()[m
+ [m
+[31m-    thread = threading.Thread(target=worker)[m
+[32m+[m[32m    thread = threading.Thread([m
+[32m+[m[32m        target=worker,[m
+[32m+[m[32m        daemon=True,[m
+[32m+[m[32m    )[m
+     thread.start()[m
+ [m
+     dots = 0[m
+[36m@@ -93,16 +141,28 @@[m [mdef run_quiet_func(message: str, func):[m
+ [m
+     while not done.wait(0.5):[m
+         dots = (dots + 1) % 7[m
+[31m-        print("\r" + message + "." * dots + " " * (6 - dots), end="", flush=True)[m
+[32m+[m
+[32m+[m[32m        print([m
+[32m+[m[32m            "\r"[m
+[32m+[m[32m            + message[m
+[32m+[m[32m            + "." * dots[m
+[32m+[m[32m            + " " * (6 - dots),[m
+[32m+[m[32m            end="",[m
+[32m+[m[32m            flush=True,[m
+[32m+[m[32m        )[m
+ [m
+     thread.join()[m
+ [m
+[31m-    if "error" in result:[m
+[31m-        print("\r" + message + " failed")[m
+[31m-        raise result["error"][m
+[32m+[m[32m    error = result.get("error")[m
+[32m+[m
+[32m+[m[32m    if isinstance(error, BaseException):[m
+[32m+[m[32m        print(f"\r{message} failed{' ' * 6}")[m
+[32m+[m[32m        raise error[m
+[32m+[m
+[32m+[m[32m    print(f"\r{message} done{' ' * 6}")[m
+[32m+[m
+[32m+[m[32m    return result["value"]  # type: ignore[return-value][m
+ [m
+[31m-    print("\r" + message + " done")[m
+[31m-    return result.get("value")[m
+ [m
+ def run_quiet_capture([m
+     message: str,[m
+[36m@@ -110,43 +170,65 @@[m [mdef run_quiet_capture([m
+     *,[m
+     cwd: str | Path | None = None,[m
+ ) -> tuple[bool, str]:[m
+[31m-    with tempfile.NamedTemporaryFile("w+", delete=False, encoding="utf-8") as f:[m
+[31m-        log_path = Path(f.name)[m
+[32m+[m[32m    with tempfile.NamedTemporaryFile([m
+[32m+[m[32m        mode="w+",[m
+[32m+[m[32m        delete=False,[m
+[32m+[m[32m        encoding="utf-8",[m
+[32m+[m[32m    ) as file:[m
+[32m+[m[32m        log_path = Path(file.name)[m
+ [m
+     print(message, end="", flush=True)[m
+ [m
+[31m-    with log_path.open("w", encoding="utf-8", errors="replace") as log:[m
+[31m-        proc = subprocess.Popen([m
+[31m-            list(cmd),[m
+[31m-            stdout=log,[m
+[31m-            stderr=subprocess.STDOUT,[m
+[31m-            cwd=cwd,[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        with log_path.open([m
+[32m+[m[32m            "w",[m
+[32m+[m[32m            encoding="utf-8",[m
+[32m+[m[32m            errors="replace",[m
+[32m+[m[32m        ) as log:[m
+[32m+[m[32m            proc = subprocess.Popen([m
+[32m+[m[32m                list(cmd),[m
+[32m+[m[32m                stdout=log,[m
+[32m+[m[32m                stderr=subprocess.STDOUT,[m
+[32m+[m[32m                cwd=cwd,[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m        dots = 0[m
+[32m+[m
+[32m+[m[32m        while proc.poll() is None:[m
+[32m+[m[32m            time.sleep(0.5)[m
+[32m+[m[32m            dots += 1[m
+[32m+[m
+[32m+[m[32m            print([m
+[32m+[m[32m                "\r"[m
+[32m+[m[32m                + message[m
+[32m+[m[32m                + "." * dots[m
+[32m+[m[32m                + " " * (6 - dots),[m
+[32m+[m[32m                end="",[m
+[32m+[m[32m                flush=True,[m
+[32m+[m[32m            )[m
+[32m+[m
+[32m+[m[32m            if dots >= 6:[m
+[32m+[m[32m                dots = 0[m
+[32m+[m
+[32m+[m[32m        status = proc.wait()[m
+[32m+[m
+[32m+[m[32m        log_text = log_path.read_text([m
+[32m+[m[32m            encoding="utf-8",[m
+[32m+[m[32m            errors="replace",[m
+         )[m
+ [m
+[31m-    dots = 0[m
+[31m-[m
+[31m-    while proc.poll() is None:[m
+[31m-        time.sleep(0.5)[m
+[31m-        print(".", end="", flush=True)[m
+[31m-        dots += 1[m
+[32m+[m[32m        if status == 0:[m
+[32m+[m[32m            print(f"\r{message} done{' ' * 6}")[m
+[32m+[m[32m            return True, log_text[m
+ [m
+[31m-        if dots >= 6:[m
+[31m-            print(f"\r{message}      \r{message}", end="", flush=True)[m
+[31m-            dots = 0[m
+[32m+[m[32m        print(f"\r{message} failed{' ' * 6}")[m
+[32m+[m[32m        ng("command failed")[m
+ [m
+[31m-    status = proc.wait()[m
+[31m-    log_text = log_path.read_text(encoding="utf-8", errors="replace")[m
+[31m-[m
+[31m-    if status == 0:[m
+[31m-        print(f"\r{message} done")[m
+[31m-        log_path.unlink(missing_ok=True)[m
+[31m-        return True, log_text[m
+[32m+[m[32m        print("---- log ----")[m
+[32m+[m[32m        print(log_text, end="")[m
+[32m+[m[32m        print("-------------")[m
+ [m
+[31m-    print(f"\r{message} failed")[m
+[31m-    ng("command failed")[m
+[31m-    print("---- log ----")[m
+[31m-    print(log_text, end="")[m
+[31m-    print("-------------")[m
+[31m-    log_path.unlink(missing_ok=True)[m
+[32m+[m[32m        return False, log_text[m
+ [m
+[31m-    return False, log_text[m
+\ No newline at end of file[m
+[32m+[m[32m    finally:[m
+[32m+[m[32m        log_path.unlink(missing_ok=True)[m
+\ No newline at end of file[m
+[1mdiff --git a/.lib/mcheck.py b/.lib/mcheck.py[m
+[1mindex 44c8187..5e63e6b 100644[m
+[1m--- a/.lib/mcheck.py[m
+[1m+++ b/.lib/mcheck.py[m
+[36m@@ -4,7 +4,10 @@[m [mfrom __future__ import annotations[m
+ [m
+ import argparse[m
+ import importlib.util[m
+[32m+[m[32mimport json[m
+ import os[m
+[32m+[m[32mimport re[m
+[32m+[m[32mimport subprocess[m
+ import sys[m
+ import tomllib[m
+ from dataclasses import dataclass[m
+[36m@@ -43,6 +46,14 @@[m [mclass CheckResult:[m
+         return self.ng == 0[m
+ [m
+ [m
+[32m+[m[32mdef parse_pip_spec(spec: str) -> tuple[str, str, bool]:[m
+[32m+[m[32m    if " @ " in spec:[m
+[32m+[m[32m        name, _ = spec.split(" @ ", 1)[m
+[32m+[m[32m        return name.strip(), spec, True[m
+[32m+[m
+[32m+[m[32m    return spec, spec, False[m
+[32m+[m
+[32m+[m
+ def env_path(name: str | None) -> Path:[m
+     if name in (None, "", "."):[m
+         path = os.environ.get("MENV_PATH", "")[m
+[36m@@ -122,6 +133,10 @@[m [mdef list_of_strings(conf: dict[str, Any], section: str, key: str) -> list[str]:[m
+     return [str(x) for x in value][m
+ [m
+ [m
+[32m+[m[32mdef normalize_package_name(name: str) -> str:[m
+[32m+[m[32m    return re.sub(r"[-_.]+", "-", name).lower()[m
+[32m+[m
+[32m+[m
+ def load_plugin_packages(env: Path) -> ModuleType | None:[m
+     path = env / ".lib" / "packages.py"[m
+ [m
+[36m@@ -344,44 +359,182 @@[m [mdef check_venv([m
+             info(f"install: mcheck {display_name(env)} --install")[m
+ [m
+     for pkg in packages:[m
+[31m-        if check.pip_package_exists(venv_path, pkg):[m
+[31m-            ok(f"pip: {pkg}")[m
+[32m+[m[32m        name, install_spec, is_direct = parse_pip_spec(pkg)[m
+[32m+[m
+[32m+[m[32m        installed = check.pip_package_exists(venv_path, name)[m
+[32m+[m
+[32m+[m[32m        if installed and not (install and is_direct):[m
+[32m+[m[32m            ok(f"pip: {name}")[m
+             result.add(True)[m
+             continue[m
+ [m
+[31m-        ng(f"pip: {pkg}")[m
+[31m-        result.add(False)[m
+[32m+[m[32m        if not installed:[m
+[32m+[m[32m            ng(f"pip: {name}")[m
+[32m+[m[32m            result.add(False)[m
+ [m
+         if not check.venv_exists(venv_path):[m
+[31m-            info(f"venv is missing, cannot install pip package yet: {pkg}")[m
+[32m+[m[32m            info(f"venv is missing, cannot install pip package yet: {name}")[m
+             continue[m
+ [m
+         if install:[m
+             success = run_quiet([m
+[31m-                f"installing pip: {pkg}",[m
+[32m+[m[32m                f"installing pip: {name}",[m
+                 [[m
+                     str(venv_path / "bin" / "python"),[m
+                     "-m",[m
+                     "pip",[m
+                     "install",[m
+                     "-U",[m
+[31m-                    pkg,[m
+[32m+[m[32m                install_spec,[m
+                 ],[m
+             )[m
+ [m
+[31m-            if success and check.pip_package_exists(venv_path, pkg):[m
+[31m-                ok(f"installed pip: {pkg}")[m
+[31m-                result.fix()[m
+[32m+[m[32m            if success and check.pip_package_exists(venv_path, name):[m
+[32m+[m[32m                if installed:[m
+[32m+[m[32m                    ok(f"updated pip: {name}")[m
+[32m+[m[32m                    result.add(True)[m
+[32m+[m[32m                else:[m
+[32m+[m[32m                    ok(f"installed pip: {name}")[m
+[32m+[m[32m                    result.fix()[m
+             else:[m
+[31m-                ng(f"failed to install pip: {pkg}")[m
+[32m+[m[32m                ng(f"failed to install pip: {name}")[m
+[32m+[m[32m                if installed:[m
+[32m+[m[32m                    result.add(False)[m
+         else:[m
+[31m-            info(f"install: mcheck {display_name(env)} --install")[m
+[32m+[m[32m            if installed:[m
+[32m+[m[32m                ok(f"pip: {name}")[m
+[32m+[m[32m                result.add(True)[m
+[32m+[m[32m            else:[m
+[32m+[m[32m                info(f"install: mcheck {display_name(env)} --install")[m[41m    [m
+ [m
+[31m-    print()[m
+[32m+[m[32m        print()[m
+ [m
+     return venv_rel[m
+ [m
+ [m
+[32m+[m[32mdef find_outdated_pip_packages([m
+[32m+[m[32m    venv_path: Path,[m
+[32m+[m[32m) -> tuple[dict[str, tuple[str, str]] | None, str]:[m
+[32m+[m[32m    command = [[m
+[32m+[m[32m        str(venv_path / "bin" / "python"),[m
+[32m+[m[32m        "-m",[m
+[32m+[m[32m        "pip",[m
+[32m+[m[32m        "list",[m
+[32m+[m[32m        "--outdated",[m
+[32m+[m[32m        "--format=json",[m
+[32m+[m[32m        "--disable-pip-version-check",[m
+[32m+[m[32m    ][m
+[32m+[m
+[32m+[m[32m    completed = subprocess.run([m
+[32m+[m[32m        command,[m
+[32m+[m[32m        stdout=subprocess.PIPE,[m
+[32m+[m[32m        stderr=subprocess.PIPE,[m
+[32m+[m[32m        text=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    if completed.returncode != 0:[m
+[32m+[m[32m        error = completed.stderr.strip().splitlines()[m
+[32m+[m[32m        return None, error[-1] if error else "pip command failed"[m
+[32m+[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        entries = json.loads(completed.stdout)[m
+[32m+[m[32m    except json.JSONDecodeError:[m
+[32m+[m[32m        return None, "pip returned invalid JSON"[m
+[32m+[m
+[32m+[m[32m    outdated: dict[str, tuple[str, str]] = {}[m
+[32m+[m
+[32m+[m[32m    for entry in entries:[m
+[32m+[m[32m        if not isinstance(entry, dict):[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        name = entry.get("name")[m
+[32m+[m[32m        current = entry.get("version")[m
+[32m+[m[32m        latest = entry.get("latest_version")[m
+[32m+[m
+[32m+[m[32m        if not all(isinstance(x, str) for x in (name, current, latest)):[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        outdated[normalize_package_name(name)] = (current, latest)[m
+[32m+[m
+[32m+[m[32m    return outdated, ""[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef check_updates([m
+[32m+[m[32m    env: Path,[m
+[32m+[m[32m    conf: dict[str, Any],[m
+[32m+[m[32m    *,[m
+[32m+[m[32m    venv_rel: str,[m
+[32m+[m[32m    install: bool,[m
+[32m+[m[32m    result: CheckResult,[m
+[32m+[m[32m) -> None:[m
+[32m+[m[32m    packages = list_of_strings(conf, "update", "pip")[m
+[32m+[m
+[32m+[m[32m    if not packages:[m
+[32m+[m[32m        return[m
+[32m+[m
+[32m+[m[32m    print("updates:")[m
+[32m+[m
+[32m+[m[32m    venv_path = env / venv_rel[m
+[32m+[m
+[32m+[m[32m    if not check.venv_exists(venv_path):[m
+[32m+[m[32m        ng(f"pip update check: venv not found: {venv_rel}")[m
+[32m+[m[32m        result.add(False)[m
+[32m+[m[32m        print()[m
+[32m+[m[32m        return[m
+[32m+[m
+[32m+[m[32m    outdated, error = find_outdated_pip_packages(venv_path)[m
+[32m+[m
+[32m+[m[32m    if outdated is None:[m
+[32m+[m[32m        ng("pip update check failed")[m
+[32m+[m[32m        warn(error)[m
+[32m+[m[32m        result.add(False)[m
+[32m+[m[32m        print()[m
+[32m+[m[32m        return[m
+[32m+[m
+[32m+[m[32m    for pkg in packages:[m
+[32m+[m[32m        if not check.pip_package_exists(venv_path, pkg):[m
+[32m+[m[32m            ng(f"pip update: package not installed: {pkg}")[m
+[32m+[m[32m            result.add(False)[m
+[32m+[m[32m            info(f"install: mcheck {display_name(env)} --install")[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        versions = outdated.get(normalize_package_name(pkg))[m
+[32m+[m
+[32m+[m[32m        if versions is None:[m
+[32m+[m[32m            ok(f"pip update: {pkg} is up to date")[m
+[32m+[m[32m            result.add(True)[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        current, latest = versions[m
+[32m+[m
+[32m+[m[32m        if not install:[m
+[32m+[m[32m            ng(f"pip update: {pkg} {current} -> {latest}")[m
+[32m+[m[32m            result.add(False)[m
+[32m+[m[32m            info(f"update: mcheck {display_name(env)} --install")[m
+[32m+[m[32m            continue[m
+[32m+[m
+[32m+[m[32m        success = run_quiet([m
+[32m+[m[32m            f"updating pip: {pkg} {current} -> {latest}",[m
+[32m+[m[32m            [[m
+[32m+[m[32m                str(venv_path / "bin" / "python"),[m
+[32m+[m[32m                "-m",[m
+[32m+[m[32m                "pip",[m
+[32m+[m[32m                "install",[m
+[32m+[m[32m                "-U",[m
+[32m+[m[32m                pkg,[m
+[32m+[m[32m            ],[m
+[32m+[m[32m        )[m
+[32m+[m
+[32m+[m[32m        if success:[m
+[32m+[m[32m            ok(f"updated pip: {pkg} {current} -> {latest}")[m
+[32m+[m[32m            result.add(True)[m
+[32m+[m[32m        else:[m
+[32m+[m[32m            ng(f"failed to update pip: {pkg}")[m
+[32m+[m[32m            result.add(False)[m
+[32m+[m
+[32m+[m[32m    print()[m
+[32m+[m
+[32m+[m
+ def check_commands([m
+     env: Path,[m
+     conf: dict[str, Any],[m
+[36m@@ -425,6 +578,13 @@[m [mdef check_env(env: Path, *, install: bool = False) -> bool:[m
+     check_local_packages(env, conf, install=install, result=result)[m
+     check_global_packages(conf, install=install, result=result)[m
+     venv_rel = check_venv(env, conf, install=install, result=result)[m
+[32m+[m[32m    check_updates([m
+[32m+[m[32m        env,[m
+[32m+[m[32m        conf,[m
+[32m+[m[32m        venv_rel=venv_rel,[m
+[32m+[m[32m        install=install,[m
+[32m+[m[32m        result=result,[m
+[32m+[m[32m    )[m
+     check_commands(env, conf, venv_rel=venv_rel, result=result)[m
+ [m
+     print("summary:")[m
+[36m@@ -466,4 +626,4 @@[m [mdef main() -> None:[m
+ [m
+ [m
+ if __name__ == "__main__":[m
+[31m-    main()[m
+\ No newline at end of file[m
+[32m+[m[32m    main()[m
+[1mdiff --git a/envs/song/.toml b/envs/song/.toml[m
+[1mindex 10409c9..8b83061 100644[m
+[1m--- a/envs/song/.toml[m
+[1m+++ b/envs/song/.toml[m
+[36m@@ -18,4 +18,9 @@[m [mnames = [[m
+ path = ".venv"[m
+ packages = [[m
+   "yt-dlp",[m
+[32m+[m[32m][m
+[32m+[m
+[32m+[m[32m[update][m
+[32m+[m[32mpip = [[m
+[32m+[m[32m  "yt-dlp",[m
+ ][m
+\ No newline at end of file[m

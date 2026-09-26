@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.cookiejar
 import re
 import shutil
 import subprocess
@@ -19,9 +20,46 @@ from sites import (
 NAME = "atcoder"
 BASE_URL = "https://atcoder.jp"
 
+OJ_COOKIE_PATH = (
+    Path.home()
+    / ".local"
+    / "share"
+    / "online-judge-tools"
+    / "cookie.jar"
+)
+
 TASK_HREF_PATTERN = re.compile(
     r"^/contests/([^/]+)/tasks/([^/]+)$"
 )
+
+
+def _create_session() -> requests.Session:
+    session = requests.Session()
+
+    if not OJ_COOKIE_PATH.is_file():
+        return session
+
+    jar = http.cookiejar.LWPCookieJar(
+        str(OJ_COOKIE_PATH)
+    )
+
+    try:
+        jar.load(
+            ignore_discard=True,
+            ignore_expires=True,
+        )
+    except (
+        OSError,
+        http.cookiejar.LoadError,
+    ) as error:
+        raise SiteError(
+            f"failed to load oj cookie: "
+            f"{OJ_COOKIE_PATH}"
+        ) from error
+
+    session.cookies = jar
+
+    return session
 
 
 def contest_url(
@@ -54,9 +92,10 @@ def fetch_problems(
     contest_id: str,
 ) -> tuple[Problem, ...]:
     url = tasks_url(contest_id)
+    session = _create_session()
 
     try:
-        response = requests.get(
+        response = session.get(
             url,
             timeout=10,
         )
@@ -239,6 +278,8 @@ def _sample_number(
 def submit(
     problem: Problem,
     source: Path,
+    *,
+    language: str | None = None,
 ) -> SubmitResult:
     oj = shutil.which("oj")
 
@@ -255,14 +296,29 @@ def submit(
             f"{source}"
         )
 
-    completed = subprocess.run(
-        [
-            oj,
-            "submit",
-            "--yes",
-            problem.url,
-            str(source),
+    command = [
+        oj,
+        "submit",
+        "--yes",
+        "--no-open",
+    ]
+
+    if language is not None:
+        command += [
+            "--language",
+            language,
         ]
+
+    command += [
+        problem.url,
+        str(source),
+    ]
+
+    completed = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
 
     if completed.returncode != 0:

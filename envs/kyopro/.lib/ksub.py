@@ -19,6 +19,7 @@ from contest import (
 from languages import (
     LanguageError,
     find_source,
+    get_language,
 )
 from sites import (
     SiteError,
@@ -245,6 +246,8 @@ def submit(
         root / problem.label
     )
 
+    language = get_language(source)
+
     info(f"contest: {contest.id}")
     info(f"problem: {problem.label}")
     info(f"source: {source}")
@@ -288,6 +291,11 @@ def submit(
         result = site.submit(
             problem,
             submission_source,
+            language=getattr(
+                language,
+                "ATCODER_LANGUAGE",
+                None,
+            ),
         )
 
     except SubmissionUnavailable as error:
@@ -306,8 +314,6 @@ def submit(
         ) from error
 
     if not result.success:
-        warn(result.message)
-
         if copy_to_clipboard(
             submission_source
         ):
@@ -317,7 +323,7 @@ def submit(
             )
 
         raise KsubError(
-            "submission failed"
+            result.message or "submission failed"
         )
 
     ok(result.message)

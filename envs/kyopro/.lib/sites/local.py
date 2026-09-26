@@ -15,6 +15,8 @@ NAME = "local"
 def submit(
     problem: Problem,
     source: Path,
+    *,
+    language: str | None = None,
 ) -> SubmitResult:
     raise SubmissionUnavailable(
         "local contest does not support submission"
