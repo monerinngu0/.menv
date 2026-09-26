@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from config import (
+    ConfigError,
+    load_config,
+)
+
 from build import (
     BuildError,
     build_submission,
@@ -345,8 +350,12 @@ def main() -> None:
 
     parser.add_argument(
         "--test",
-        action="store_true",
-        help="run local tests before submission",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "run local tests before submission "
+            "(use --no-test to disable)"
+        ),
     )
 
     parser.add_argument(
@@ -363,26 +372,43 @@ def main() -> None:
         "-t",
         "--timeout",
         type=float,
-        default=2.0,
+        default=None,
         metavar="SEC",
         help=(
-            "timeout per test case "
-            "(used with --test, default: 2.0)"
+            "override timeout per test case "
+            "(used with --test)"
         ),
     )
 
     args = parser.parse_args()
 
     try:
+        config = load_config()
+
         include_dirs = normalize_include_dirs(
-            args.include_dir
+            [
+                *config.cpp.include_dirs,
+                *args.include_dir,
+            ]
+        )
+
+        timeout = (
+            args.timeout
+            if args.timeout is not None
+            else config.testing.timeout
+        )
+
+        test = (
+            args.test
+            if args.test is not None
+            else config.ksub.test_before_submit
         )
 
         submit(
             args.problem,
             include_dirs=include_dirs,
-            timeout=args.timeout,
-            test=args.test,
+            timeout=timeout,
+            test=test,
         )
 
     except (

@@ -5,6 +5,11 @@ import os
 import sys
 from pathlib import Path
 
+from config import (
+    ConfigError,
+    load_config,
+)
+
 from contest import (
     ContestError,
     find_contest_root,
@@ -294,25 +299,37 @@ def main() -> None:
         "-t",
         "--timeout",
         type=float,
-        default=2.0,
+        default=None,
         metavar="SEC",
-        help="timeout per test case (default: 2.0)",
+        help="override timeout per test case",
     )
 
     args = parser.parse_args()
 
     try:
+        config = load_config()
+
         include_dirs = normalize_include_dirs(
-            args.include_dir
+            [
+                *config.cpp.include_dirs,
+                *args.include_dir,
+            ]
+        )
+
+        timeout = (
+            args.timeout
+            if args.timeout is not None
+            else config.testing.timeout
         )
 
         success = run(
             args.target,
             include_dirs=include_dirs,
-            timeout=args.timeout,
+            timeout=timeout,
         )
 
     except (
+        ConfigError,
         ContestError,
         KtestError,
         LanguageError,

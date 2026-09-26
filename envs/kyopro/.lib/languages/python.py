@@ -30,9 +30,12 @@ def run_command(
     source: Path,
     executable: Path,
 ) -> tuple[str, ...]:
-    return (
-        PYTHON,
-        str(source.resolve()),
+    config = load_config()
+
+    return render_command(
+        config.python.run_command,
+        source=source,
+        output=executable,
     )
 
 

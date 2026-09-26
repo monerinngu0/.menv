@@ -6,6 +6,11 @@ import shutil
 import sys
 from pathlib import Path
 
+from config import (
+    ConfigError,
+    load_config,
+)
+
 from contest import (
     CONTEST_VERSION,
     Contest,
@@ -156,21 +161,30 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--no-download",
-        action="store_true",
+        "--download",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help=(
-            "create the contest without "
-            "downloading sample test cases"
+            "download sample test cases "
+            "(use --no-download to disable)"
         ),
     )
 
     args = parser.parse_args()
 
     try:
+        config = load_config()
+
+        download_samples = (
+            args.download
+            if args.download is not None
+            else config.knew.download_samples
+        )
+
         root = create_contest(
             args.contest,
             destination=args.directory,
-            download_samples=not args.no_download,
+            download_samples=download_samples,
         )
 
     except (

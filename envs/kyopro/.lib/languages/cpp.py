@@ -6,7 +6,6 @@ from pathlib import Path
 
 from config import load_config
 from languages.command import (
-    CommandError,
     render_command,
 )
 
@@ -73,8 +72,12 @@ def run_command(
     source: Path,
     executable: Path,
 ) -> tuple[str, ...]:
-    return (
-        str(executable.resolve()),
+    config = load_config()
+
+    return render_command(
+        config.cpp.run_command,
+        source=source,
+        output=executable,
     )
 
 

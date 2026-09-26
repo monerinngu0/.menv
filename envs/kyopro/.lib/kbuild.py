@@ -4,6 +4,11 @@ import argparse
 import sys
 from pathlib import Path
 
+from config import (
+    ConfigError,
+    load_config,
+)
+
 from build import (
     BuildError,
     build_submission,
@@ -114,8 +119,13 @@ def main() -> None:
             args.output
         )
 
+        config = load_config()
+
         include_dirs = normalize_include_dirs(
-            args.include_dir
+            [
+                *config.cpp.include_dirs,
+                *args.include_dir,
+            ]
         )
 
         built = run(
@@ -126,6 +136,7 @@ def main() -> None:
 
     except (
         BuildError,
+        ConfigError,
         LanguageError,
         KbuildError,
     ) as error:
