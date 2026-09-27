@@ -6,6 +6,7 @@ from pathlib import Path
 from config import load_config
 from languages.command import render_command
 
+NAME = "python"
 EXTENSIONS = {".py"}
 SUBMISSION_FILENAME = "sol.py"
 

@@ -297,6 +297,28 @@ def submit(
         f"{problem.url}"
     )
 
+    if not getattr(
+        site,
+        "SUBMISSION_AVAILABLE",
+        False,
+    ):
+        warn(
+            f"automatic submission unavailable "
+            f"for {contest.site}"
+        )
+
+        if copy_to_clipboard(
+            submission_source
+        ):
+            ok(
+                "copied submission source "
+                "to clipboard"
+            )
+        
+        raise KsubError(
+            "automatic submission unavailable"
+        )
+
     try:
         submission_language = get_submission_language(
             contest.site,

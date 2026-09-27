@@ -22,6 +22,8 @@ from submission import SubmissionLanguage
 NAME = "atcoder"
 BASE_URL = "https://atcoder.jp"
 
+SUBMISSION_AVAILABLE = True
+
 OJ_COOKIE_PATH = (
     Path.home()
     / ".local"

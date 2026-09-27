@@ -10,6 +10,7 @@ from languages.command import (
 )
 
 
+NAME = "cpp"
 EXTENSIONS = {".cpp"}
 SUBMISSION_FILENAME = "sol.cpp"
 

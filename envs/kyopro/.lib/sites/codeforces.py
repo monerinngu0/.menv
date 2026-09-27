@@ -22,6 +22,8 @@ NAME = "codeforces"
 BASE_URL = "https://codeforces.com"
 API_BASE_URL = f"{BASE_URL}/api"
 
+SUBMISSION_AVAILABLE = False
+
 
 def contest_url(
     contest_id: str,
