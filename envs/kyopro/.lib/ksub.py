@@ -42,6 +42,11 @@ from testing import (
     test_source,
 )
 
+from submission import (
+    SubmissionError,
+    get_submission_language,
+)
+
 
 MENV_ROOT = Path(
     os.environ.get(
@@ -293,14 +298,15 @@ def submit(
     )
 
     try:
+        submission_language = get_submission_language(
+            contest.site,
+            language.NAME,
+        )
+
         result = site.submit(
             problem,
             submission_source,
-            language=getattr(
-                language,
-                "ATCODER_LANGUAGE",
-                None,
-            ),
+            language=submission_language,
         )
 
     except SubmissionUnavailable as error:
@@ -420,6 +426,7 @@ def main() -> None:
         SiteError,
         TestcaseError,
         TestingError,
+        SubmissionError,
     ) as error:
         ng(str(error))
         sys.exit(1)

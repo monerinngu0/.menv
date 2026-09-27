@@ -16,6 +16,8 @@ from sites import (
     SubmitResult,
 )
 
+from submission import SubmissionLanguage
+
 
 NAME = "atcoder"
 BASE_URL = "https://atcoder.jp"
@@ -279,7 +281,7 @@ def submit(
     problem: Problem,
     source: Path,
     *,
-    language: str | None = None,
+    language: SubmissionLanguage | None = None,
 ) -> SubmitResult:
     oj = shutil.which("oj")
 
@@ -306,7 +308,7 @@ def submit(
     if language is not None:
         command += [
             "--language",
-            language,
+            language.query,
         ]
 
     command += [

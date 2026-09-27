@@ -9,9 +9,6 @@ from languages.command import render_command
 EXTENSIONS = {".py"}
 SUBMISSION_FILENAME = "sol.py"
 
-ATCODER_LANGUAGE = "CPython"
-
-
 def compile(
     source: Path,
     output: Path,

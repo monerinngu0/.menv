@@ -15,6 +15,8 @@ from sites import (
     SubmitResult,
 )
 
+from submission import SubmissionLanguage
+
 
 NAME = "codeforces"
 BASE_URL = "https://codeforces.com"
@@ -244,7 +246,7 @@ def submit(
     problem: Problem,
     source: Path,
     *,
-    language: str | None = None,
+    language: SubmissionLanguage | None = None,
 ) -> SubmitResult:
     raise SubmissionUnavailable(
         "Codeforces automatic submission "

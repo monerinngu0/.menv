@@ -13,8 +13,6 @@ from languages.command import (
 EXTENSIONS = {".cpp"}
 SUBMISSION_FILENAME = "sol.cpp"
 
-ATCODER_LANGUAGE = "C++ 23"
-
 INCLUDE_PATTERN = re.compile(
     r'^\s*#\s*include\s*[<"]([^>"]+)[>"]\s*$'
 )
