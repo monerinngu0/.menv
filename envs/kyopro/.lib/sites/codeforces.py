@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import re
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
 import requests
@@ -14,7 +10,6 @@ from sites import (
     SubmissionUnavailable,
     SubmitResult,
 )
-
 from submission import SubmissionLanguage
 from sites.common import download_oj_testcases
 
