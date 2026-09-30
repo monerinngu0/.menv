@@ -273,7 +273,7 @@ def check_tools(
             info("define has_tool(name), install_tool(name), and update_tool(name) in the plugin")
             continue
 
-        if update:
+        if install:
             success = run_quiet(
                 f"installing tool: {pkg}",
                 [
@@ -320,7 +320,7 @@ def check_system_packages(
         ng(f"system: {pkg}")
         result.add(False)
 
-        if update:
+        if install:
             success = run_quiet(
                 f"installing system package: {pkg}",
                 ["sudo", "apt", "install", "-y", pkg],
@@ -376,7 +376,7 @@ def check_venv(
         ng(f"venv: {venv_rel}")
         result.add(False)
 
-        if update:
+        if install:
             success = run_quiet(
                 f"creating venv: {venv_rel}",
                 [python, "-m", "venv", str(venv_path)],
@@ -395,7 +395,7 @@ def check_venv(
 
         installed = check.pip_package_exists(venv_path, name)
 
-        if installed and not (install and is_direct):
+        if installed:
             ok(f"pip: {name}")
             result.add(True)
             continue
@@ -408,7 +408,7 @@ def check_venv(
             info(f"venv is missing, cannot install pip package yet: {name}")
             continue
 
-        if update:
+        if install:
             success = run_quiet(
                 f"installing pip: {name}",
                 [
