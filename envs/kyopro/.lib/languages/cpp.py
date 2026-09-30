@@ -47,6 +47,11 @@ def compile(
         )
     )
 
+    include_dirs = (
+        *config.cpp.include_dirs,
+        *include_dirs,
+    )
+
     for directory in include_dirs:
         command.extend(
             [
@@ -89,9 +94,14 @@ def build_submission(
     source = source.resolve()
     output = output.resolve()
 
+    config = load_config()
+
     include_dirs = tuple(
         path.resolve()
-        for path in include_dirs
+        for path in (
+            *config.cpp.include_dirs,
+            *include_dirs,
+        )
     )
 
     visited: set[Path] = set()
