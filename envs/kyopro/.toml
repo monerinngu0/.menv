@@ -1,10 +1,10 @@
-[apt]
-packages = []
-
-[apt-g]
+[system]
 packages = [
   "g++",
 ]
+
+[tools]
+names = []
 
 [commands]
 names = [
@@ -24,3 +24,5 @@ packages = [
 pip = [
   "online-judge-tools",
 ]
+
+tools = []
