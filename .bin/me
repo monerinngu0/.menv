@@ -169,11 +169,35 @@ me_resolve_name() {
     return 1
 }
 
+me_add_tool_paths() {
+    local base="$1"
+    local path="$2"
+    local tool
+
+    if [ ! -d "$base/.tools" ]; then
+        echo "$path"
+        return
+    fi
+
+    for tool in "$base"/.tools/*; do
+        [ -d "$tool" ] || continue
+
+        if [ -d "$tool/bin" ]; then
+            path="$tool/bin:$path"
+        else
+            path="$tool:$path"
+        fi
+    done
+
+    echo "$path"
+}
+
 me_rebuild_path() {
     local new_path="$1"
 
     local path="$MENV_ORIGINAL_PATH"
 
+    path="$(me_add_tool_paths "$MENV_ROOT" "$path")"
     path="$MENV_ROOT/.bin:$path"
 
     if [ -d "$MENV_ROOT/.venv/bin" ]; then
@@ -196,6 +220,8 @@ me_rebuild_path() {
         fi
 
         real="$(me_real_path "$cur")"
+
+        path="$(me_add_tool_paths "$real" "$path")"
 
         if [ -d "$real/.bin" ]; then
             path="$real/.bin:$path"
