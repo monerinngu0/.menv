@@ -137,13 +137,13 @@ def normalize_package_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def load_plugin_packages(env: Path) -> ModuleType | None:
-    path = env / ".lib" / "packages.py"
+def load_plugin_tools(env: Path) -> ModuleType | None:
+    path = env / ".lib" / "tools.py"
 
     if not path.exists():
         return None
 
-    module_name = f"menv_plugin_packages_{display_name(env).replace('/', '_').replace('-', '_')}"
+    module_name = f"menv_plugin_tools_{display_name(env).replace('/', '_').replace('-', '_')}"
     spec = importlib.util.spec_from_file_location(module_name, path)
 
     if spec is None or spec.loader is None:
@@ -165,11 +165,11 @@ def load_plugin_packages(env: Path) -> ModuleType | None:
     return module
 
 
-def plugin_has_package(module: ModuleType | None, package: str) -> bool:
+def plugin_has_tool(module: ModuleType | None, package: str) -> bool:
     if module is None:
         return False
 
-    func = getattr(module, "has_package", None)
+    func = getattr(module, "has_tool", None)
 
     if func is None:
         return False
@@ -177,11 +177,11 @@ def plugin_has_package(module: ModuleType | None, package: str) -> bool:
     return bool(func(package))
 
 
-def plugin_install_package(module: ModuleType | None, package: str) -> bool:
+def plugin_install_tool(module: ModuleType | None, package: str) -> bool:
     if module is None:
         return False
 
-    func = getattr(module, "install_package", None)
+    func = getattr(module, "install_tool", None)
 
     if func is None:
         return False
@@ -189,116 +189,148 @@ def plugin_install_package(module: ModuleType | None, package: str) -> bool:
     return bool(func(package))
 
 
-def install_local_package_internal(env: Path, package: str) -> int:
-    plugin_packages = load_plugin_packages(env)
+def install_tool_internal(env: Path, package: str) -> int:
+    plugin_tools = load_plugin_tools(env)
 
-    if plugin_packages is None:
+    if plugin_tools is None:
         return 1
 
-    success = plugin_install_package(plugin_packages, package)
+    success = plugin_install_tool(plugin_tools, package)
+
+    return 0 if success else 1
+
+
+def plugin_update_tool(module: ModuleType | None, tool: str) -> bool:
+    if module is None:
+        return False
+
+    func = getattr(module, "update_tool", None)
+
+    if func is None:
+        return False
+
+    return bool(func(tool))
+
+
+def update_tool_internal(env: Path, tool: str) -> int:
+    plugin_tools = load_plugin_tools(env)
+
+    if plugin_tools is None:
+        return 1
+
+    success = plugin_update_tool(plugin_tools, tool)
 
     return 0 if success else 1
 
 
 def handle_internal_command() -> None:
-    if len(sys.argv) >= 2 and sys.argv[1] == "__install_local_package__":
+    if len(sys.argv) >= 2 and sys.argv[1] == "__install_tool__":
         if len(sys.argv) != 4:
             sys.exit(1)
 
         env = Path(sys.argv[2])
         package = sys.argv[3]
 
-        sys.exit(install_local_package_internal(env, package))
+        sys.exit(install_tool_internal(env, package))
+
+    if len(sys.argv) >= 2 and sys.argv[1] == "__update_tool__":
+        if len(sys.argv) != 4:
+            sys.exit(1)
+
+        env = Path(sys.argv[2])
+        tool = sys.argv[3]
+
+        sys.exit(update_tool_internal(env, tool))
 
 
-def check_local_packages(
+def check_tools(
     env: Path,
     conf: dict[str, Any],
     *,
     install: bool,
     result: CheckResult,
 ) -> None:
-    packages = list_of_strings(conf, "apt", "packages")
+    packages = list_of_strings(conf, "tools", "names")
 
     if not packages:
         return
 
-    plugin_packages = load_plugin_packages(env)
+    plugin_tools = load_plugin_tools(env)
 
-    print("local packages:")
+    print("tools:")
 
     for pkg in packages:
-        if plugin_has_package(plugin_packages, pkg):
-            ok(f"apt: {pkg}")
+        if plugin_has_tool(plugin_tools, pkg):
+            ok(f"tool: {pkg}")
             result.add(True)
             continue
 
-        ng(f"apt: {pkg}")
+        ng(f"tool: {pkg}")
         result.add(False)
 
-        if plugin_packages is None:
-            warn(f"plugin package hook not found: {env / '.lib' / 'packages.py'}")
-            info("define has_package(package) and install_package(package) in the plugin")
+        if plugin_tools is None:
+            warn(f"plugin tool hook not found: {env / '.lib' / 'tools.py'}")
+            info("define has_tool(name), install_tool(name), and update_tool(name) in the plugin")
             continue
 
-        if install:
+        if update:
             success = run_quiet(
-                f"installing apt: {pkg}",
+                f"installing tool: {pkg}",
                 [
                     sys.executable,
                     str(Path(__file__).resolve()),
-                    "__install_local_package__",
+                    "__install_tool__",
                     str(env),
                     pkg,
                 ],
             )
 
-            plugin_packages = load_plugin_packages(env)
+            plugin_tools = load_plugin_tools(env)
 
-            if success and plugin_has_package(plugin_packages, pkg):
-                ok(f"installed apt: {pkg}")
+            if success and plugin_has_tool(plugin_tools, pkg):
+                ok(f"installed tool: {pkg}")
                 result.fix()
             else:
-                ng(f"failed to install apt: {pkg}")
+                ng(f"failed to install tool: {pkg}")
         else:
             info(f"install: mcheck {display_name(env)} --install")
 
     print()
 
 
-def check_global_packages(
+def check_system_packages(
     conf: dict[str, Any],
     *,
     install: bool,
     result: CheckResult,
 ) -> None:
-    packages = list_of_strings(conf, "apt-g", "packages")
+    packages = list_of_strings(conf, "system", "packages")
 
     if not packages:
         return
 
-    print("global apt packages:")
+    print("system packages:")
 
     for pkg in packages:
         if check.apt_global_package_exists(pkg):
-            ok(f"apt-g: {pkg}")
+            ok(f"system: {pkg}")
             result.add(True)
             continue
 
-        ng(f"apt-g: {pkg}")
+        ng(f"system: {pkg}")
         result.add(False)
 
-        if install:
+        if update:
             success = run_quiet(
-                f"installing apt-g: {pkg}",
+                f"installing system package: {pkg}",
                 ["sudo", "apt", "install", "-y", pkg],
             )
 
             if success and check.apt_global_package_exists(pkg):
-                ok(f"installed apt-g: {pkg}")
+                ok(f"installed system package: {pkg}")
                 result.fix()
             else:
-                ng(f"failed to install apt-g: {pkg}")
+                ng(f"failed to install system package: {pkg}")
         else:
             info(f"install: sudo apt install -y {pkg}")
 
@@ -344,7 +376,7 @@ def check_venv(
         ng(f"venv: {venv_rel}")
         result.add(False)
 
-        if install:
+        if update:
             success = run_quiet(
                 f"creating venv: {venv_rel}",
                 [python, "-m", "venv", str(venv_path)],
@@ -376,7 +408,7 @@ def check_venv(
             info(f"venv is missing, cannot install pip package yet: {name}")
             continue
 
-        if install:
+        if update:
             success = run_quiet(
                 f"installing pip: {name}",
                 [
@@ -464,7 +496,7 @@ def check_updates(
     conf: dict[str, Any],
     *,
     venv_rel: str,
-    install: bool,
+    update: bool,
     result: CheckResult,
 ) -> None:
     packages = list_of_strings(conf, "update", "pip")
@@ -507,10 +539,10 @@ def check_updates(
 
         current, latest = versions
 
-        if not install:
+        if not update:
             ng(f"pip update: {pkg} {current} -> {latest}")
             result.add(False)
-            info(f"update: mcheck {display_name(env)} --install")
+            info(f"update: mcheck {display_name(env)} --update")
             continue
 
         success = run_quiet(
@@ -530,6 +562,58 @@ def check_updates(
             result.add(True)
         else:
             ng(f"failed to update pip: {pkg}")
+            result.add(False)
+
+    print()
+
+
+def check_tool_updates(
+    env: Path,
+    conf: dict[str, Any],
+    *,
+    update: bool,
+    result: CheckResult,
+) -> None:
+    tools = list_of_strings(conf, "update", "tools")
+
+    if not tools:
+        return
+
+    plugin_tools = load_plugin_tools(env)
+
+    print("tool updates:")
+
+    for tool in tools:
+        if not plugin_has_tool(plugin_tools, tool):
+            ng(f"tool update: not installed: {tool}")
+            result.add(False)
+            info(f"install: mcheck {display_name(env)} --install")
+            continue
+
+        if not update:
+            ok(f"tool update: {tool} is installed")
+            result.add(True)
+            info(f"update: mcheck {display_name(env)} --update")
+            continue
+
+        success = run_quiet(
+            f"updating tool: {tool}",
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "__update_tool__",
+                str(env),
+                tool,
+            ],
+        )
+
+        plugin_tools = load_plugin_tools(env)
+
+        if success and plugin_has_tool(plugin_tools, tool):
+            ok(f"updated tool: {tool}")
+            result.add(True)
+        else:
+            ng(f"failed to update tool: {tool}")
             result.add(False)
 
     print()
@@ -568,21 +652,32 @@ def check_commands(
     print()
 
 
-def check_env(env: Path, *, install: bool = False) -> bool:
+def check_env(
+    env: Path,
+    *,
+    install: bool = False,
+    update: bool = False,
+) -> bool:
     conf = load_toml(env)
     result = CheckResult()
 
     print(f"==== check: {display_name(env)} ====")
     print()
 
-    check_local_packages(env, conf, install=install, result=result)
-    check_global_packages(conf, install=install, result=result)
+    check_tools(env, conf, install=install, result=result)
+    check_system_packages(conf, install=install, result=result)
     venv_rel = check_venv(env, conf, install=install, result=result)
     check_updates(
         env,
         conf,
         venv_rel=venv_rel,
-        install=install,
+        update=update,
+        result=result,
+    )
+    check_tool_updates(
+        env,
+        conf,
+        update=update,
         result=result,
     )
     check_commands(env, conf, venv_rel=venv_rel, result=result)
@@ -609,6 +704,8 @@ def main() -> None:
 
     parser.add_argument("env", nargs="?")
     parser.add_argument("--install", action="store_true")
+    parser.add_argument("--update", action="store_true")
+    parser.add_argument("--sync", action="store_true")
     parser.add_argument("--strict", action="store_true")
 
     args = parser.parse_args()
@@ -619,7 +716,14 @@ def main() -> None:
         ng(f"env not found: {args.env or os.environ.get('MENV_PATH', '')}")
         sys.exit(1)
 
-    success = check_env(env, install=args.install)
+    install = args.install or args.sync
+    update = args.update or args.sync
+
+    success = check_env(
+        env,
+        install=install,
+        update=update,
+    )
 
     if args.strict and not success:
         sys.exit(1)
