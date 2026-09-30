@@ -1,8 +1,8 @@
-[apt]
+[system]
 packages = []
 
-[apt-g]
-packages = []
+[tools]
+names = []
 
 [commands]
 names = []
