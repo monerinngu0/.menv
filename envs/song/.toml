@@ -1,11 +1,11 @@
-[apt]
-packages = [
+[system]
+packages = []
+
+[tools]
+names = [
   "ffmpeg",
   "deno",
 ]
-
-[apt-g]
-packages = []
 
 [commands]
 names = [
@@ -24,3 +24,5 @@ packages = [
 pip = [
   "yt-dlp",
 ]
+
+tools = []
