@@ -4,6 +4,7 @@ set -e
 compiler="${CXX:-g++}"
 base_flags=(
     -std=gnu++23
+    -O2
     "-I$HOME/library/mone-library"
     "-I$HOME/library/ac-library"
 )
