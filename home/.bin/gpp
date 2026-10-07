@@ -1,27 +1,84 @@
 #!/usr/bin/env bash
+set -e
 
-flags=(
+compiler="${CXX:-g++}"
+base_flags=(
     -std=gnu++23
     "-I$HOME/library/mone-library"
     "-I$HOME/library/ac-library"
 )
-
 args=()
+pch_extra_flags=()
+pch_allowed=1
+has_cpp_source=0
 
-for arg in "$@"; do
+while (($#)); do
+    arg=$1
+    shift
     case "$arg" in
         -d)
-            flags+=(
-                -DDEBUG
-                -g
-                -fsanitize=address,undefined
-            )
+            base_flags+=(-DDEBUG -g -fsanitize=address,undefined)
+            ;;
+        --no-pch)
+            pch_allowed=0
+            ;;
+        -o|-MF|-MT|-MQ)
+            args+=("$arg")
+            if (($#)); then args+=("$1"); shift; fi
+            ;;
+        -D|-U|-I|-isystem|-iquote|-idirafter|-std)
+            args+=("$arg")
+            if (($#)); then
+                args+=("$1")
+                pch_extra_flags+=("$arg" "$1")
+                shift
+            fi
+            ;;
+        -include|-imacros|-x|-Xpreprocessor|-Xclang|-Wp,*|-nostdinc|-nostdinc++|-E|-M|-MM|-fmodules*)
+            pch_allowed=0
+            args+=("$arg")
+            case "$arg" in
+                -include|-imacros|-x|-Xpreprocessor|-Xclang)
+                    if (($#)); then args+=("$1"); shift; fi
+                    ;;
+            esac
+            ;;
+        -std=*|-O*|-D*|-U*|-I*|-isystem*|-iquote*|-idirafter*|-march=*|-mtune=*|-m*|-f*|-pthread)
+            args+=("$arg")
+            pch_extra_flags+=("$arg")
             ;;
         *)
             args+=("$arg")
+            case "$arg" in *.cpp|*.cc|*.cxx|*.C) has_cpp_source=1;; esac
             ;;
     esac
 done
 
-exec g++ "${flags[@]}" "${args[@]}"
+if [[ "${GPP_NO_PCH:-0}" == 1 ]] || (( !pch_allowed || !has_cpp_source )); then
+    exec "$compiler" "${base_flags[@]}" "${args[@]}"
+fi
 
+# Precompile the standard library only, so local library edits remain immediate.
+cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/gpp-pch"
+compiler_path=$(command -v "$compiler")
+compiler_version=$("$compiler" -dumpfullversion -dumpversion)
+compiler_target=$("$compiler" -dumpmachine)
+cache_key=$(
+    printf '%s\0' "$compiler_path" "$compiler_version" "$compiler_target" \
+        "${base_flags[@]}" "${pch_extra_flags[@]}" \
+        'pch-header-v1:#include <bits/stdc++.h>' | sha256sum | cut -c1-20
+)
+cache_dir="$cache_root/$cache_key"
+header="$cache_dir/std.hpp"
+mkdir -p "$cache_dir"
+if [[ ! -f "$header.gch" ]]; then
+    printf '#include <bits/stdc++.h>\n' > "$header"
+    tmp="$header.gch.tmp.$$"
+    trap 'rm -f "$tmp"' EXIT
+    "$compiler" "${base_flags[@]}" "${pch_extra_flags[@]}" \
+        -x c++-header "$header" -o "$tmp"
+    mv -f "$tmp" "$header.gch"
+    trap - EXIT
+fi
+
+exec "$compiler" "${base_flags[@]}" "${args[@]}" -include "$header"
