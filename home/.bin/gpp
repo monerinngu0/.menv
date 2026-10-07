@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+flags=(
+    -std=gnu++23
+    "-I$HOME/library/mone-library"
+    "-I$HOME/library/ac-library"
+)
+
+args=()
+
+for arg in "$@"; do
+    case "$arg" in
+        -d)
+            flags+=(
+                -DDEBUG
+                -g
+                -fsanitize=address,undefined
+            )
+            ;;
+        *)
+            args+=("$arg")
+            ;;
+    esac
+done
+
+exec g++ "${flags[@]}" "${args[@]}"
+
