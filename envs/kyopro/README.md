@@ -1,38 +1,16 @@
 # kyopro
 
-Download an AtCoder contest with the original command:
+コンテスト情報・サンプル取得、C++ / Python のローカルテスト、提出用ソース生成、提出を行う環境です。
 
 ```bash
+mcheck kyopro --install
+me kyopro
 knew abc400
-```
-
-Create a site-independent contest without searching or downloading anything:
-
-```bash
-knew local-001 --manual --site local --problems a b c
-cd local-001
-```
-
-`--problems` also accepts comma-separated labels. `--url` stores an optional
-contest URL as metadata.
-
-Add custom test cases interactively. End each input block with a line containing
-only `.`:
-
-```bash
-ktest a --add-case
-ktest a --add-case edge
-```
-
-Test data can instead be copied from files:
-
-```bash
-ktest a --add-case edge --input-file input.txt --output-file expected.txt
-```
-
-List or run all downloaded and custom cases:
-
-```bash
-ktest a --list-cases
+cd abc400
+# a.cpp を作成
 ktest a
+kbuild a.cpp
 ```
+
+gpp の配置、設定、include 展開の制約、提出方法は [競プロドキュメント](../../docs/kyopro.md) を参照してください。
+現行コマンドは knew、ktest、kbuild、ksub です。
