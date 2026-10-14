@@ -23,6 +23,7 @@ sys.path.insert(0, str(MENV_ROOT / ".lib"))
 
 from common import ok, ng, warn, info, run_quiet  # noqa: E402
 import check  # noqa: E402
+from releases import check_github_updates, validate_local_venv, pip_command
 
 
 @dataclass
@@ -250,7 +251,8 @@ def check_tools(
     install: bool,
     result: CheckResult,
 ) -> None:
-    packages = list_of_strings(conf, "tools", "names")
+    packages = list_of_strings(conf, "install", "tools")
+    packages += list_of_strings(conf, "tools", "names")
 
     if not packages:
         return
@@ -304,37 +306,16 @@ def check_system_packages(
     install: bool,
     result: CheckResult,
 ) -> None:
-    packages = list_of_strings(conf, "system", "packages")
+    # Legacy [system] is also check-only, even with --install / --sync.
+    packages = list_of_strings(conf, "check", "packages")
+    packages += list_of_strings(conf, "system", "packages")
+    for pkg in dict.fromkeys(packages):
+        success = check.apt_global_package_exists(pkg)
+        (ok if success else ng)(f"system (check-only): {pkg}")
+        result.add(success)
+        if not success:
+            info(f"install system package manually: {pkg}")
 
-    if not packages:
-        return
-
-    print("system packages:")
-
-    for pkg in packages:
-        if check.apt_global_package_exists(pkg):
-            ok(f"system: {pkg}")
-            result.add(True)
-            continue
-
-        ng(f"system: {pkg}")
-        result.add(False)
-
-        if install:
-            success = run_quiet(
-                f"installing system package: {pkg}",
-                ["sudo", "apt", "install", "-y", pkg],
-            )
-
-            if success and check.apt_global_package_exists(pkg):
-                ok(f"installed system package: {pkg}")
-                result.fix()
-            else:
-                ng(f"failed to install system package: {pkg}")
-        else:
-            info(f"install: sudo apt install -y {pkg}")
-
-    print()
 
 
 def check_venv(
@@ -365,7 +346,7 @@ def check_venv(
         raw_packages = []
 
     packages = [str(x) for x in raw_packages]
-    venv_path = env / venv_rel
+    venv_path = validate_local_venv(env, venv_rel)
 
     print("venv:")
 
@@ -379,7 +360,7 @@ def check_venv(
         if install:
             success = run_quiet(
                 f"creating venv: {venv_rel}",
-                [python, "-m", "venv", str(venv_path)],
+                [python, "-I", "-m", "venv", str(venv_path)],
             )
 
             if success and check.venv_exists(venv_path):
@@ -389,6 +370,8 @@ def check_venv(
                 ng(f"failed to create venv: {venv_rel}")
         else:
             info(f"install: mcheck {display_name(env)} --install")
+
+    validate_local_venv(env, venv_rel)
 
     for pkg in packages:
         name, install_spec, is_direct = parse_pip_spec(pkg)
@@ -411,14 +394,7 @@ def check_venv(
         if install:
             success = run_quiet(
                 f"installing pip: {name}",
-                [
-                    str(venv_path / "bin" / "python"),
-                    "-m",
-                    "pip",
-                    "install",
-                    "-U",
-                install_spec,
-                ],
+                pip_command(venv_path, "install", "--no-user", install_spec),
             )
 
             if success and check.pip_package_exists(venv_path, name):
@@ -447,15 +423,7 @@ def check_venv(
 def find_outdated_pip_packages(
     venv_path: Path,
 ) -> tuple[dict[str, tuple[str, str]] | None, str]:
-    command = [
-        str(venv_path / "bin" / "python"),
-        "-m",
-        "pip",
-        "list",
-        "--outdated",
-        "--format=json",
-        "--disable-pip-version-check",
-    ]
+    command = pip_command(venv_path, "list", "--outdated", "--format=json", "--disable-pip-version-check")
 
     completed = subprocess.run(
         command,
@@ -547,14 +515,7 @@ def check_updates(
 
         success = run_quiet(
             f"updating pip: {pkg} {current} -> {latest}",
-            [
-                str(venv_path / "bin" / "python"),
-                "-m",
-                "pip",
-                "install",
-                "-U",
-                pkg,
-            ],
+            pip_command(venv_path, "install", "--no-user", "-U", pkg),
         )
 
         if success:
@@ -626,7 +587,8 @@ def check_commands(
     venv_rel: str,
     result: CheckResult,
 ) -> None:
-    commands = list_of_strings(conf, "commands", "names")
+    commands = list_of_strings(conf, "check", "commands")
+    commands += list_of_strings(conf, "commands", "names")
 
     if not commands:
         return
@@ -647,7 +609,7 @@ def check_commands(
         else:
             ng(f"command: {cmd}")
             result.add(False)
-            info(f"install: mcheck {display_name(env)} --install")
+            info(f"provide command manually or declare a local install dependency: {cmd}")
 
     print()
 
@@ -659,6 +621,18 @@ def check_env(
     update: bool = False,
 ) -> bool:
     conf = load_toml(env)
+    for section in ("venv", "update", "check", "install"):
+        if section in conf and not isinstance(conf[section], dict):
+            raise ValueError(f"[{section}] must be a table")
+    # Validate mutation destinations before calling any installers or hooks.
+    validate_local_venv(env, str(conf.get("venv", {}).get("path", ".venv")))
+    tools_dir = (env / ".tools").resolve()
+    if not tools_dir.is_relative_to(env.resolve()) or tools_dir == env.resolve():
+        raise ValueError(".tools must stay inside the selected environment")
+    if tools_dir.exists():
+        for path in tools_dir.rglob("*"):
+            if path.is_symlink() and not path.resolve().is_relative_to(tools_dir):
+                raise ValueError(f".tools symlink escapes local tools directory: {path}")
     result = CheckResult()
 
     print(f"==== check: {display_name(env)} ====")
@@ -674,6 +648,7 @@ def check_env(
         update=update,
         result=result,
     )
+    check_github_updates(env, conf, venv_rel=venv_rel, update=update, result=result)
     check_tool_updates(
         env,
         conf,
@@ -719,11 +694,11 @@ def main() -> None:
     install = args.install or args.sync
     update = args.update or args.sync
 
-    success = check_env(
-        env,
-        install=install,
-        update=update,
-    )
+    try:
+        success = check_env(env, install=install, update=update)
+    except (ValueError, OSError, subprocess.SubprocessError, tomllib.TOMLDecodeError) as error:
+        ng(str(error))
+        sys.exit(1)
 
     if args.strict and not success:
         sys.exit(1)

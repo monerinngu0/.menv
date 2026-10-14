@@ -1,11 +1,9 @@
-[system]
+[check]
+commands = []
 packages = []
 
-[tools]
-names = []
-
-[commands]
-names = []
+[install]
+tools = []
 
 [venv]
 path = ".venv"

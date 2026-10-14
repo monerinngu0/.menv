@@ -20,6 +20,9 @@ def run(cmd: list[str], *, cwd: Path | None = None) -> int:
 
 
 def apt_global_package_exists(package: str) -> bool:
+    if shutil.which("dpkg-query") is None:
+        return False
+
     result = subprocess.run(
         ["dpkg-query", "-W", "-f=${Status}", package],
         stdout=subprocess.PIPE,
@@ -118,7 +121,7 @@ def pip_package_exists(venv_path: Path, package: str) -> bool:
         return False
 
     result = subprocess.run(
-        [str(python), "-m", "pip", "show", package],
+        [str(python), "-I", "-m", "pip", "show", package],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

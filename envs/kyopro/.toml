@@ -1,16 +1,14 @@
-[system]
+[check]
+commands = [
+  "g++",
+  "oj",
+]
 packages = [
   "g++",
 ]
 
-[tools]
-names = []
-
-[commands]
-names = [
-  "g++",
-  "oj",
-]
+[install]
+tools = []
 
 [venv]
 path = ".venv"
