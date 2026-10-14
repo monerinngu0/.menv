@@ -1,0 +1,19 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  mcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test mcheck boundaries and update decisions
+        run: python3 -m unittest discover -s tests -v
+      - name: Check syntax
+        run: |
+          bash -n .bin/mcheck
+          python3 -m compileall -q .lib
+          git diff --check

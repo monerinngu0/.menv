@@ -40,12 +40,13 @@ mcheck kyopro --sync --strict
 | menv / '~' | 共通環境 |
 | kyopro / menv/kyopro / '~/kyopro' | 指定した環境 |
 | .. | 現在の環境の親 |
-| --install | 不足依存を導入 |
-| --update | [update] の依存を更新 |
+| --install | 環境内の不足依存だけを導入 |
+| --update | [update] の環境内依存だけを更新 |
 | --sync | 導入と更新を両方実行 |
 | --strict | 検査結果に NG があれば終了コード 1 |
 
-通常の検査でも [update].pip の更新確認を実行します。
+[check] は検査だけです。--install / --sync でもシステムパッケージやグローバルコマンドは導入しません。
+通常の検査でも [update].pip と [[update.github]] の更新確認を実行します。
 --strict がなければ検査結果が NG でも通常は終了コード 0 です。引数や設定のエラーは別途失敗します。
 名前の解決は me と異なり、通常の環境名は envs/ 直下から指定します。
 

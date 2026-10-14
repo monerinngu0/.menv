@@ -1,16 +1,14 @@
-[system]
-packages = []
-
-[tools]
-names = [
-  "ffmpeg",
-  "deno",
-]
-
-[commands]
-names = [
+[check]
+commands = [
   "ffmpeg",
   "ffprobe",
+  "deno",
+]
+packages = []
+
+[install]
+tools = [
+  "ffmpeg",
   "deno",
 ]
 
@@ -21,8 +19,10 @@ packages = [
 ]
 
 [update]
-pip = [
-  "yt-dlp",
-]
+pip = []
 
 tools = []
+
+[[update.github]]
+package = "yt-dlp"
+repository = "https://github.com/yt-dlp/yt-dlp"

@@ -3,7 +3,7 @@
 ## 必要な環境
 
 Ubuntu / Debian 系 Linux または WSL と Bash、Git、Python 3.11 以上（tomllib を使用）、python3-venv が必要です。
-apt による導入には sudo を使用します。
+Python・venv・コンパイラなど、システム側の前提は手動で準備します。mcheck は apt / sudo を実行しません。
 
 clone と Bash 設定は [README](../README.md#導入) を参照してください。
 別の場所に clone する場合は MENV_ROOT をその絶対パスに変更します。
@@ -17,8 +17,8 @@ mcheck kyopro --install
 me kyopro
 ```
 
-mcheck のラッパーは Python / venv がない場合に導入するか質問します。
-それ以外の不足依存を導入するには --install を指定します。
+mcheck は Python がない・古い場合にエラーを表示します。システムへの導入や更新は行いません。
+環境内の不足依存を導入するには --install を指定します。
 設定した pip 更新対象の確認にもネットワーク接続を使います。
 
 ## C++ の準備
