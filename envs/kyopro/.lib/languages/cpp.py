@@ -189,24 +189,13 @@ def _merge_namespaces(text: str) -> str:
             following = tokens[i + 1:i + 4]
             if [item.group() for item in following] != ["namespace", name, "{"]:
                 continue
-            # Only remove standalone boundaries and conventional closing comments.
-            start = text.rfind("\n", 0, token.start()) + 1
-            end = text.find("\n", following[-1].end())
-            if end == -1:
-                end = len(text)
-            boundary = text[start:end]
-            if re.fullmatch(
-                r"[ \t]*\}[ \t]*(?://[ \t]*(?:namespace[ \t]+)?"
-                + re.escape(name)
-                + r"[ \t]*)?\n\s*namespace[ \t]+"
-                + re.escape(name)
-                + r"[ \t]*\{[ \t]*",
-                boundary,
-            ):
-                edits.append((start, end))
+            # The scope stack identifies the closing brace; spelling and
+            # line layout are irrelevant. Keep comments between the tokens.
+            edits.append((token.start(), token.end()))
+            edits.extend((item.start(), item.end()) for item in following)
 
-    for start, end in reversed(edits):
-        text = text[:start] + text[end:]
+    for start, end in sorted(edits, reverse=True):
+        text = text[:start] + " " + text[end:]
     return text
 
 
