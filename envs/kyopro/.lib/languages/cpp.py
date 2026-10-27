@@ -32,18 +32,6 @@ def compile(
     source = source.resolve()
     output = output.resolve()
 
-    # Normalize blank lines once, after all nested includes are expanded.
-    cleaned: list[str] = []
-    for line in text.splitlines():
-        if not line.strip():
-            if cleaned and cleaned[-1].strip():
-                cleaned.append("")
-        else:
-            cleaned.append(line)
-    while cleaned and not cleaned[-1].strip():
-        cleaned.pop()
-    text = "\n".join(cleaned) + "\n"
-
     output.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -125,6 +113,18 @@ def build_submission(
         visited=visited,
         seen_includes=seen_includes,
     )
+
+    # Normalize blank lines once, after all nested includes are expanded.
+    cleaned: list[str] = []
+    for line in text.splitlines():
+        if not line.strip():
+            if cleaned and cleaned[-1].strip():
+                cleaned.append("")
+        else:
+            cleaned.append(line)
+    while cleaned and not cleaned[-1].strip():
+        cleaned.pop()
+    text = "\n".join(cleaned) + "\n"
 
     output.parent.mkdir(
         parents=True,
