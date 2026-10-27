@@ -105,11 +105,13 @@ def build_submission(
     )
 
     visited: set[Path] = set()
+    seen_includes: set[str] = set()
 
     text = _expand_file(
         source,
         include_dirs=include_dirs,
         visited=visited,
+        seen_includes=seen_includes,
     )
 
     output.parent.mkdir(
@@ -130,6 +132,7 @@ def _expand_file(
     *,
     include_dirs: tuple[Path, ...],
     visited: set[Path],
+    seen_includes: set[str],
 ) -> str:
     path = path.resolve()
 
@@ -150,6 +153,9 @@ def _expand_file(
     result: list[str] = []
 
     for line in lines:
+        if line.strip() in ("#pragma once", "#pragma kbuild expand"):
+            continue
+
         match = INCLUDE_PATTERN.match(line)
 
         if match is None:
@@ -165,27 +171,36 @@ def _expand_file(
         )
 
         if header is None:
-            result.append(line)
+            # Keep external headers only once.
+            # Include spelling is kept so system paths remain unchanged.
+            if include_name not in seen_includes:
+                seen_includes.add(include_name)
+                result.append(line)
             continue
-
-        result.append(
-            f"// begin include: {include_name}"
-        )
 
         expanded = _expand_file(
             header,
             include_dirs=include_dirs,
             visited=visited,
+            seen_includes=seen_includes,
         )
 
         if expanded:
             result.append(expanded)
 
-        result.append(
-            f"// end include: {include_name}"
-        )
+    # Normalize whitespace left by removed includes and directives.
+    cleaned: list[str] = []
+    for line in result:
+        if not line.strip():
+            if cleaned and cleaned[-1].strip():
+                cleaned.append("")
+        else:
+            cleaned.append(line)
 
-    return "\n".join(result) + "\n"
+    while cleaned and not cleaned[-1].strip():
+        cleaned.pop()
+
+    return "\n".join(cleaned) + "\n"
 
 
 def _resolve_include(
