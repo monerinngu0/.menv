@@ -114,6 +114,8 @@ def build_submission(
         seen_includes=seen_includes,
     )
 
+    text = _merge_namespaces(text)
+
     # Normalize blank lines once, after all nested includes are expanded.
     cleaned: list[str] = []
     for line in text.splitlines():
@@ -121,6 +123,13 @@ def build_submission(
             if cleaned and cleaned[-1].strip():
                 cleaned.append("")
         else:
+            if (
+                INCLUDE_PATTERN.match(line)
+                and len(cleaned) >= 2
+                and not cleaned[-1]
+                and INCLUDE_PATTERN.match(cleaned[-2])
+            ):
+                cleaned.pop()
             cleaned.append(line)
     while cleaned and not cleaned[-1].strip():
         cleaned.pop()
@@ -137,6 +146,69 @@ def build_submission(
     )
 
     return output
+
+
+def _merge_namespaces(text: str) -> str:
+    # Tokenize literals/comments as units so their braces are not scopes.
+    token_pattern = re.compile(
+        r'(?P<raw>(?:u8|u|U|L)?R"(?P<delimiter>[^\s()\\]{0,16})\('
+        r'.*?\)(?P=delimiter)")'
+        r'|(?P<comment>//[^\n]*|/\*.*?\*/)'
+        r'|(?P<literal>"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\')'
+        r'|(?P<directive>^[ \t]*\#(?:\\\n|[^\n])*)'
+        r'|[A-Za-z_]\w*|[^\s]',
+        re.DOTALL | re.MULTILINE,
+    )
+    tokens = [
+        token for token in token_pattern.finditer(text)
+        if token.lastgroup != "comment"
+    ]
+    scopes: list[str | None] = []
+    edits: list[tuple[int, int]] = []
+
+    for i, token in enumerate(tokens):
+        value = token.group()
+        if token.lastgroup == "directive":
+            # Conditional compilation can change the brace structure.
+            if re.match(r"\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b", value):
+                scopes.clear()
+        elif value == "{":
+            name = None
+            if (
+                i >= 2
+                and tokens[i - 2].group() == "namespace"
+                and re.fullmatch(r"[A-Za-z_]\w*", tokens[i - 1].group())
+                and (i < 3 or tokens[i - 3].group() != "inline")
+            ):
+                name = tokens[i - 1].group()
+            scopes.append(name)
+        elif value == "}" and scopes:
+            name = scopes.pop()
+            if name is None or i + 3 >= len(tokens):
+                continue
+            following = tokens[i + 1:i + 4]
+            if [item.group() for item in following] != ["namespace", name, "{"]:
+                continue
+            # Only remove standalone boundaries and conventional closing comments.
+            start = text.rfind("\n", 0, token.start()) + 1
+            end = text.find("\n", following[-1].end())
+            if end == -1:
+                end = len(text)
+            boundary = text[start:end]
+            if re.fullmatch(
+                r"[ \t]*\}[ \t]*(?://[ \t]*(?:namespace[ \t]+)?"
+                + re.escape(name)
+                + r"[ \t]*)?\n\s*namespace[ \t]+"
+                + re.escape(name)
+                + r"[ \t]*\{[ \t]*",
+                boundary,
+            ):
+                edits.append((start, end))
+
+    for start, end in reversed(edits):
+        text = text[:start] + text[end:]
+    return text
+
 
 
 def _expand_file(
