@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+from clipboard import copy_to_clipboard
 
 from config import (
     ConfigError,
@@ -212,26 +212,6 @@ def build_source(
     return result.output
 
 
-def copy_to_clipboard(
-    source: Path,
-) -> bool:
-    command = (
-        shutil.which("clip.exe")
-        or shutil.which("clip")
-    )
-
-    if command is None:
-        return False
-
-    with source.open("rb") as stream:
-        completed = subprocess.run(
-            [command],
-            stdin=stream,
-        )
-
-    return completed.returncode == 0
-
-
 def submit(
     problem_label: str,
     *,
@@ -314,7 +294,7 @@ def submit(
                 "copied submission source "
                 "to clipboard"
             )
-        
+
         raise KsubError(
             "automatic submission unavailable"
         )

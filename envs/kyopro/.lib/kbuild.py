@@ -4,6 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from clipboard import copy_to_clipboard
+
 from config import (
     ConfigError,
     load_config,
@@ -108,6 +110,12 @@ def main() -> None:
         help="add an include directory",
     )
 
+    parser.add_argument(
+        "--copy",
+        action="store_true",
+        help="copy the generated submission source to the clipboard",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -147,6 +155,16 @@ def main() -> None:
         sys.exit(1)
 
     print(f"[OK] built: {built}")
+
+    if args.copy:
+        if not copy_to_clipboard(built, config.clipboard):
+            print(
+                "[ERROR] clipboard copy failed; generated source is available: "
+                f"{built}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print("[OK] copied submission source to clipboard")
 
 
 if __name__ == "__main__":

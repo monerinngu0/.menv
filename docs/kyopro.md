@@ -45,11 +45,15 @@ ktest solution.py
 ```bash
 kbuild a.cpp -I ~/library/mone-library -I ~/library/ac-library
 kbuild main.cpp -o submission.cpp
+kbuild a.cpp --copy
+kbuild solution.py -o submission.py --copy
 ```
 
 kbuild は実行ファイルではなく提出用ソースを作ります。
 コンテスト内の既定出力は .build/<問題>/sol.cpp、コンテスト外ではソースの隣の sol.cpp です。
 Python の提出用ファイル名は sol.py です。
+`--copy` を付けた場合だけ、生成成功後に提出用ソースをクリップボードへコピーします。
+コピーに失敗した場合は終了コード 1 を返しますが、生成済みファイルは残ります。
 
 C++ ではソースのディレクトリ、次に include_dirs でヘッダーを探し、見つかった include を再帰的に展開します。
 見つからない include は残ります。同じファイルは一度だけ展開します。
@@ -84,7 +88,54 @@ ksub はコンテスト内で使い、提出用ソースを生成してからサ
 同梱設定では提出前テストは既定で無効です。
 AtCoder の提出言語は .lib/submission.py に定義されています。
 Codeforces は自動提出に対応していません。提出できない場合は生成済みソースを手動提出します。
-clip.exe または clip があればクリップボードへのコピーも試みます。自動提出不可は終了コード 1 です。
+自動提出不可・提出失敗時には、後述の共通設定に従って生成済みソースのコピーを試みます。
+コピーできても自動提出不可・提出失敗の終了コードは 1 のままです。
+
+## クリップボード
+
+`kbuild --copy` と `ksub` は `envs/kyopro/.config` の同じ設定を使います。
+既存設定に `[clipboard]` がない場合も `auto` として動作します。
+
+```toml
+[clipboard]
+method = "auto"
+command = []
+```
+
+`method` は次の 3 種類です。
+
+| 値 | 動作 |
+| --- | --- |
+| `auto` | 設定した `command`、`clip.exe`、`clip`、`wl-copy`、`xclip -selection clipboard`、`xsel --clipboard --input` の順で試し、最後に OSC 52 を試す |
+| `command` | `command` のみを実行する。空の配列は設定エラー |
+| `osc52` | 外部コマンドを使わず OSC 52 を送る |
+
+`auto` は PATH 上にあるコマンドを試します。起動エラー・非ゼロ終了・5 秒のタイムアウトは失敗として次へ進みます。
+`command` には実行ファイルと引数を配列で指定します。生成済みソースの内容を標準入力へ渡し、シェル経由の実行や `{source}` などの置換はしません。
+
+Wayland でコマンドを固定する例です。
+
+```toml
+[clipboard]
+method = "command"
+command = ["wl-copy", "--type", "text/plain;charset=utf-8"]
+```
+
+WSL では `command = ["clip.exe"]`、X11 では `command = ["xclip", "-selection", "clipboard"]` または `command = ["xsel", "--clipboard", "--input"]` を指定できます。
+
+SSH 先から接続元の端末のクリップボードへ送る場合は、OSC 52 を明示できます。
+`auto` でリモート側の外部コマンドが成功すると、リモート側のクリップボードにコピーされることがあります。
+
+```toml
+[clipboard]
+method = "osc52"
+```
+
+OSC 52 は UTF-8 ソースを Base64 化し、制御端末 `/dev/tty` へ送ります。リダイレクトした標準出力へ制御シーケンスは混入しません。
+制御端末のない CI などでは失敗します。接続元の端末が OSC 52 に対応し、クリップボード書き込みを許可している必要があります。
+tmux 内ではパススルー形式で送るため、tmux 側でもパススルーの許可が必要です。screen や多重の tmux などでは中継できないことがあります。
+端末や中継ソフトのペイロード長制限によって、大きな提出用ソースは無視・切り詰められる場合があります。
+OSC 52 には成功応答がなく、コマンドの成功表示はシーケンスの送信完了を示すだけです。実際に貼り付けて内容を確認してください。
 
 ## 設定
 
@@ -97,6 +148,8 @@ envs/kyopro/.config を編集します。
 | [knew].download_samples | サンプル取得。true |
 | [testing].timeout | 各ケースの秒数。2.0 |
 | [ksub].test_before_submit | 提出前テスト。false |
+| [clipboard].method | コピー方式。auto |
+| [clipboard].command | コピー用コマンド配列。空配列 |
 | [cpp].build_command / run_command | C++ コンパイル・実行コマンド |
 | [cpp].include_dirs | include 検索パス |
 | [python].run_command | Python 実行コマンド |

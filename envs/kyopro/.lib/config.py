@@ -48,6 +48,12 @@ class KsubConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ClipboardConfig:
+    method: str = "auto"
+    command: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class CppConfig:
     build_command: tuple[str, ...] = (
         "g++",
@@ -88,6 +94,10 @@ class KyoproConfig:
 
     ksub: KsubConfig = field(
         default_factory=KsubConfig
+    )
+
+    clipboard: ClipboardConfig = field(
+        default_factory=ClipboardConfig
     )
 
     cpp: CppConfig = field(
@@ -254,6 +264,23 @@ def load_config(
         "python",
     )
 
+    clipboard = _table(data, "clipboard")
+    clipboard_method = _string(clipboard, "method", "auto")
+    if clipboard_method not in {"auto", "osc52", "command"}:
+        raise ConfigError(
+            "clipboard.method must be auto, osc52 or command"
+        )
+
+    clipboard_command = _string_list(clipboard, "command", ())
+    if any(not item or "\0" in item for item in clipboard_command):
+        raise ConfigError(
+            "clipboard.command must contain non-empty strings without NUL"
+        )
+    if clipboard_method == "command" and not clipboard_command:
+        raise ConfigError(
+            "clipboard.command is required for method = command"
+        )
+
     cpp_include_dirs = tuple(
         Path(path).expanduser().resolve()
         for path in _string_list(
@@ -296,6 +323,10 @@ def load_config(
                 "test_before_submit",
                 False,
             ),
+        ),
+        clipboard=ClipboardConfig(
+            method=clipboard_method,
+            command=clipboard_command,
         ),
         cpp=CppConfig(
             build_command=_string_list(
