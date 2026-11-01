@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+
+MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+exec python3 "$MENV_ROOT/.lib/menv_clipboard.py" "$@"

@@ -38,7 +38,11 @@ me kyopro       # 競プロ環境へ切替
 me menv/song    # 音楽管理環境へ切替
 me pwd          # 現在の環境を表示
 me /            # 保存していた PATH / PS1 を復元
+cat main.cpp | clip  # 共通クリップボード。me kyopro は不要
 ```
+
+共通の `clip` は通常の PATH 設定だけで使えます。SSH 接続中は OSC 52 で接続元の端末へ、ローカルでは利用可能なコピーコマンドへ送ります。
+既存の `alias clip=...` がある場合の移行と端末側の条件は [clip](docs/commands.md#clip) を参照してください。
 
 ## ドキュメント
 

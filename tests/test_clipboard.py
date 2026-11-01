@@ -13,7 +13,8 @@ from unittest.mock import mock_open, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'envs/kyopro/.lib'))
 sys.path.insert(0, str(ROOT / '.lib'))
-import clipboard
+import clipboard as kyopro_clipboard
+import menv_clipboard as clipboard
 from config import ClipboardConfig, ConfigError, load_config
 import ksub
 from sites import SubmissionUnavailable, SubmitResult
@@ -21,6 +22,9 @@ from sites import SubmissionUnavailable, SubmitResult
 
 class ClipboardTests(unittest.TestCase):
     def setUp(self):
+        env = patch.dict(os.environ, {'SSH_CONNECTION': '', 'SSH_TTY': ''})
+        env.start()
+        self.addCleanup(env.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.source = Path(self.temp.name) / 'sol.cpp'
@@ -29,26 +33,26 @@ class ClipboardTests(unittest.TestCase):
 
     def test_auto_tries_all_backends_in_order_then_osc52(self):
         with patch.object(clipboard.shutil, 'which', side_effect=lambda name: name), patch.object(clipboard, '_copy_command', return_value=False) as command, patch.object(clipboard, '_copy_osc52', return_value=True) as osc:
-            self.assertTrue(clipboard.copy_to_clipboard(self.source, ClipboardConfig()))
+            self.assertTrue(clipboard.copy_bytes(self.data, ClipboardConfig()))
         self.assertEqual([call.args[0] for call in command.call_args_list], list(clipboard.COMMANDS))
         osc.assert_called_once_with(self.data)
 
     def test_auto_skips_missing_commands_and_stops_on_success(self):
         with patch.object(clipboard.shutil, 'which', side_effect=lambda name: name if name == 'wl-copy' else None), patch.object(clipboard, '_copy_command', return_value=True) as command, patch.object(clipboard, '_copy_osc52') as osc:
-            self.assertTrue(clipboard.copy_to_clipboard(self.source, ClipboardConfig()))
+            self.assertTrue(clipboard.copy_bytes(self.data, ClipboardConfig()))
         command.assert_called_once_with(('wl-copy',), self.data)
         osc.assert_not_called()
 
     def test_auto_prefers_configured_command(self):
         config = ClipboardConfig(command=('custom', '--input'))
         with patch.object(clipboard.shutil, 'which', return_value='/bin/custom'), patch.object(clipboard, '_copy_command', return_value=True) as command:
-            self.assertTrue(clipboard.copy_to_clipboard(self.source, config))
+            self.assertTrue(clipboard.copy_bytes(self.data, config))
         command.assert_called_once_with(config.command, self.data)
 
     def test_command_passes_exact_bytes_and_arguments_without_shell(self):
         config = ClipboardConfig('command', ('custom', 'argument with spaces', '$(literal)'))
         with patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run, patch.object(clipboard, '_copy_osc52') as osc:
-            self.assertTrue(clipboard.copy_to_clipboard(self.source, config))
+            self.assertTrue(clipboard.copy_bytes(self.data, config))
         self.assertEqual(run.call_args.args, (config.command,))
         self.assertEqual(run.call_args.kwargs['input'], self.data)
         self.assertNotIn('shell', run.call_args.kwargs)
@@ -57,10 +61,10 @@ class ClipboardTests(unittest.TestCase):
     def test_command_failures_return_false_without_osc52(self):
         for failure in (FileNotFoundError(), OSError('failed'), subprocess.TimeoutExpired('copy', 5)):
             with self.subTest(failure=failure), patch.object(clipboard.subprocess, 'run', side_effect=failure), patch.object(clipboard, '_copy_osc52') as osc:
-                self.assertFalse(clipboard.copy_to_clipboard(self.source, ClipboardConfig('command', ('missing',))))
+                self.assertFalse(clipboard.copy_bytes(self.data, ClipboardConfig('command', ('missing',))))
                 osc.assert_not_called()
         with patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
-            self.assertFalse(clipboard.copy_to_clipboard(self.source, ClipboardConfig('command', ('false',))))
+            self.assertFalse(clipboard.copy_bytes(self.data, ClipboardConfig('command', ('false',))))
 
     def test_osc52_utf8_base64_and_tmux_wrapper(self):
         sequence = b'\x1b]52;c;' + base64.b64encode(self.data) + b'\x07'
@@ -68,7 +72,7 @@ class ClipboardTests(unittest.TestCase):
             terminal = mock_open()
             expected = b'\x1bPtmux;' + sequence.replace(b'\x1b', b'\x1b\x1b') + b'\x1b\\' if tmux else sequence
             with self.subTest(tmux=tmux), patch.dict(os.environ, {'TMUX': tmux}), patch('builtins.open', terminal), patch.object(clipboard.subprocess, 'run') as run:
-                self.assertTrue(clipboard.copy_to_clipboard(self.source, ClipboardConfig('osc52')))
+                self.assertTrue(clipboard.copy_bytes(self.data, ClipboardConfig('osc52')))
             terminal.assert_called_once_with('/dev/tty', 'wb')
             terminal().write.assert_called_once_with(expected)
             terminal().flush.assert_called_once()
@@ -76,12 +80,39 @@ class ClipboardTests(unittest.TestCase):
 
     def test_no_terminal_or_unreadable_source_returns_false(self):
         with patch('builtins.open', side_effect=OSError('no tty')):
-            self.assertFalse(clipboard.copy_to_clipboard(self.source, ClipboardConfig('osc52')))
-        self.assertFalse(clipboard.copy_to_clipboard(self.source.with_name('missing'), ClipboardConfig()))
+            self.assertFalse(clipboard.copy_bytes(self.data, ClipboardConfig('osc52')))
+        self.assertFalse(kyopro_clipboard.copy_to_clipboard(self.source.with_name('missing'), ClipboardConfig()))
+
+    def test_ssh_auto_uses_osc52_even_with_external_commands(self):
+        for variable in ('SSH_CONNECTION', 'SSH_TTY'):
+            with self.subTest(variable=variable), patch.dict(os.environ, {variable: 'ssh'}), patch.object(clipboard, '_copy_osc52', return_value=True) as osc, patch.object(clipboard, '_copy_command') as command:
+                self.assertTrue(clipboard.copy_bytes(self.data))
+                osc.assert_called_once_with(self.data)
+                command.assert_not_called()
+
+    def test_ssh_osc52_failure_does_not_copy_to_remote_desktop(self):
+        with patch.dict(os.environ, {'SSH_CONNECTION': 'ssh'}), patch.object(clipboard, '_copy_osc52', return_value=False), patch.object(clipboard, '_copy_command') as command:
+            self.assertFalse(clipboard.copy_bytes(self.data))
+            command.assert_not_called()
+
+    def test_clip_exe_receives_unicode_in_auto_and_command_modes(self):
+        data = '日本語 😀\n'.encode()
+        for method in ('auto', 'command'):
+            with self.subTest(method=method), patch.object(clipboard.shutil, 'which', return_value='/windows/clip.exe'), patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+                self.assertTrue(clipboard.copy_bytes(data, ClipboardConfig(method, ('clip.exe',))))
+                self.assertEqual(run.call_args.kwargs['input'], b'\xff\xfe' + data.decode().encode('utf-16-le'))
+
+    def test_auto_skips_itself_without_recursing(self):
+        with patch.object(clipboard.shutil, 'which', side_effect=lambda name: str(ROOT / '.bin/clip') if name == 'clip' else None), patch.object(clipboard.subprocess, 'run') as run, patch.object(clipboard, '_copy_osc52', return_value=True):
+            self.assertTrue(clipboard.copy_bytes(self.data))
+            run.assert_not_called()
+        with patch.object(clipboard.shutil, 'which', return_value=str(ROOT / '.bin/clip')), patch.object(clipboard.subprocess, 'run') as run:
+            self.assertFalse(clipboard.copy_bytes(self.data, ClipboardConfig('command', ('clip',))))
+            run.assert_not_called()
 
     def test_default_loads_clipboard_config(self):
-        with patch.object(clipboard, 'load_config', return_value=SimpleNamespace(clipboard=ClipboardConfig('osc52'))), patch.object(clipboard, '_copy_osc52', return_value=True):
-            self.assertTrue(clipboard.copy_to_clipboard(self.source))
+        with patch.object(kyopro_clipboard, 'load_config', return_value=SimpleNamespace(clipboard=ClipboardConfig('osc52'))), patch.object(clipboard, '_copy_osc52', return_value=True):
+            self.assertTrue(kyopro_clipboard.copy_to_clipboard(self.source))
 
 
 class ClipboardConfigTests(unittest.TestCase):
@@ -151,6 +182,36 @@ class ClipboardIntegrationTests(unittest.TestCase):
         self.assertIn(b'int answer()', self.copied.read_bytes())
         self.assertNotIn(b'#include "header.h"', self.copied.read_bytes())
 
+    def test_global_clip_reads_stdin_without_kyopro_or_venv(self):
+        result = subprocess.run(
+            [str(ROOT / '.bin/clip'), '--method', 'command', '--command', sys.executable, str(self.writer), str(self.copied)],
+            input=self.source.read_bytes(), env=self.env, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, b'')
+        self.assertEqual(self.copied.read_bytes(), self.source.read_bytes())
+
+    def test_global_clip_command_arguments_include_options(self):
+        result = subprocess.run(
+            [str(ROOT / '.bin/clip'), '--method', 'command', '--command', sys.executable, '-c', 'import sys; sys.exit(0 if sys.stdin.buffer.read() == b"hello" else 1)'],
+            input=b'hello', env=self.env, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_global_clip_failure_and_invalid_arguments(self):
+        result = subprocess.run([str(ROOT / '.bin/clip'), '--method', 'command', '--command', '/nonexistent/clip'], input=b'hello', env=self.env, capture_output=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(b'clipboard copy failed', result.stderr)
+        result = subprocess.run([str(ROOT / '.bin/clip'), '--method', 'command'], input=b'hello', env=self.env, capture_output=True)
+        self.assertEqual(result.returncode, 2)
+
+    def test_clip_stays_on_path_across_environment_changes(self):
+        env = dict(self.env, MENV_ROOT=str(ROOT), PATH=str(ROOT / '.bin') + ':' + os.environ['PATH'])
+        script = 'command -v clip; source "$MENV_ROOT/.bin/me" kyopro; command -v clip; source "$MENV_ROOT/.bin/me" /; command -v clip'
+        result = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c', script], env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [str(ROOT / '.bin/clip')] * 3)
+
     def test_failed_build_never_copies(self):
         result = self.cli('kbuild', self.root / 'missing.py', '--copy')
         self.assertEqual(result.returncode, 1)
@@ -164,17 +225,30 @@ class ClipboardIntegrationTests(unittest.TestCase):
         self.assertEqual((self.root / 'sol.py').read_bytes(), self.source.read_bytes())
 
     def test_osc52_writes_to_controlling_terminal_not_stdout(self):
+        self.check_osc52_terminal(global_clip=False)
+
+    def test_global_clip_over_ssh_with_redirected_stdin_and_stdout(self):
+        self.check_osc52_terminal(global_clip=True)
+
+    def check_osc52_terminal(self, *, global_clip):
         import errno
         import pty
         import select
         self.config.write_text('[clipboard]\nmethod = "osc52"\n')
         pid, master = pty.fork()
         if pid == 0:
-            env = dict(self.env, TMUX='')
+            # A real interactive shell retains a slave fd while its pipeline runs.
+            terminal_fd = os.open('/dev/tty', os.O_RDWR)
+            os.set_inheritable(terminal_fd, True)
+            env = dict(self.env, TMUX='', SSH_CONNECTION='client 123 server 22' if global_clip else '')
             # Redirect stdout/stderr while keeping the controlling terminal.
             with open(os.devnull, 'wb') as sink:
                 os.dup2(sink.fileno(), 1)
                 os.dup2(sink.fileno(), 2)
+            if global_clip:
+                with self.source.open('rb') as source:
+                    os.dup2(source.fileno(), 0)
+                os.execve(str(ROOT / '.bin/clip'), [str(ROOT / '.bin/clip')], env)
             os.execve(sys.executable, [sys.executable, str(ROOT / 'envs/kyopro/.lib/kbuild.py'), str(self.source), '--copy'], env)
         data = bytearray()
         try:
@@ -192,8 +266,8 @@ class ClipboardIntegrationTests(unittest.TestCase):
                 os.kill(pid, 9)
                 self.fail('OSC 52 subprocess timed out')
         finally:
-            os.close(master)
             _, status = os.waitpid(pid, 0)
+            os.close(master)
         self.assertEqual(os.waitstatus_to_exitcode(status), 0)
         self.assertEqual(bytes(data), b'\x1b]52;c;' + base64.b64encode(self.source.read_bytes()) + b'\x07')
 

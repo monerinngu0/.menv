@@ -93,6 +93,8 @@ Codeforces は自動提出に対応していません。提出できない場合
 
 ## クリップボード
 
+任意のコマンド出力をコピーするには、競プロ環境への切り替えなしで `cat main.cpp | clip` を使えます。[共通 clip コマンド](commands.md#clip)を参照してください。
+
 `kbuild --copy` と `ksub` は `envs/kyopro/.config` の同じ設定を使います。
 既存設定に `[clipboard]` がない場合も `auto` として動作します。
 
@@ -106,12 +108,12 @@ command = []
 
 | 値 | 動作 |
 | --- | --- |
-| `auto` | 設定した `command`、`clip.exe`、`clip`、`wl-copy`、`xclip -selection clipboard`、`xsel --clipboard --input` の順で試し、最後に OSC 52 を試す |
+| `auto` | SSH_CONNECTION / SSH_TTY があれば OSC 52。ローカルでは設定した `command`、`clip.exe`、`clip`、`wl-copy`、`xclip -selection clipboard`、`xsel --clipboard --input` の順で試し、最後に OSC 52 を試す |
 | `command` | `command` のみを実行する。空の配列は設定エラー |
 | `osc52` | 外部コマンドを使わず OSC 52 を送る |
 
-`auto` は PATH 上にあるコマンドを試します。起動エラー・非ゼロ終了・5 秒のタイムアウトは失敗として次へ進みます。
-`command` には実行ファイルと引数を配列で指定します。生成済みソースの内容を標準入力へ渡し、シェル経由の実行や `{source}` などの置換はしません。
+`auto` のローカル実行では PATH 上にあるコマンドを試します。menv 自身の `clip` は除外します。起動エラー・非ゼロ終了・5 秒のタイムアウトは失敗として次へ進みます。
+`command` には実行ファイルと引数を配列で指定します。生成済みソースの内容を標準入力へ渡し、シェル経由の実行や `{source}` などの置換はしません。`clip.exe` には UTF-8 を BOM 付き UTF-16LE に変換して渡します。
 
 Wayland でコマンドを固定する例です。
 
@@ -124,7 +126,7 @@ command = ["wl-copy", "--type", "text/plain;charset=utf-8"]
 WSL では `command = ["clip.exe"]`、X11 では `command = ["xclip", "-selection", "clipboard"]` または `command = ["xsel", "--clipboard", "--input"]` を指定できます。
 
 SSH 先から接続元の端末のクリップボードへ送る場合は、OSC 52 を明示できます。
-`auto` でリモート側の外部コマンドが成功すると、リモート側のクリップボードにコピーされることがあります。
+`auto` も SSH 接続を検出した場合は OSC 52 を選びます。
 
 ```toml
 [clipboard]
