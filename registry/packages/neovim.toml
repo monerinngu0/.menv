@@ -1,5 +1,5 @@
 name = "neovim"
-version = 1
+version = 2
 description = "Versioned Neovim installation for Linux x86_64"
 
 [options.version]
@@ -33,7 +33,7 @@ if [ ! -d "$destination" ]; then
     temporary="$(mktemp -d "$prefix/.download.XXXXXX")"
     trap 'rm -rf -- "$temporary"' EXIT
     curl -fL "https://github.com/neovim/neovim/releases/download/v$version/nvim-linux-x86_64.tar.gz" -o "$temporary/nvim.tar.gz"
-    tar -xzf "$temporary/nvim.tar.gz" -C "$temporary"
+    tar --no-same-owner -xzf "$temporary/nvim.tar.gz" -C "$temporary"
     test -x "$temporary/nvim-linux-x86_64/bin/nvim"
     mv -- "$temporary/nvim-linux-x86_64" "$destination"
 fi
@@ -67,7 +67,7 @@ if [ ! -d "$destination" ]; then
     temporary="$(mktemp -d "$prefix/.download.XXXXXX")"
     trap 'rm -rf -- "$temporary"' EXIT
     curl -fL "https://github.com/neovim/neovim/releases/download/v$version/nvim-linux-x86_64.tar.gz" -o "$temporary/nvim.tar.gz"
-    tar -xzf "$temporary/nvim.tar.gz" -C "$temporary"
+    tar --no-same-owner -xzf "$temporary/nvim.tar.gz" -C "$temporary"
     test -x "$temporary/nvim-linux-x86_64/bin/nvim"
     mv -- "$temporary/nvim-linux-x86_64" "$destination"
 fi
