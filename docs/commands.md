@@ -87,7 +87,7 @@ setup list --local
 setup list
 setup search neovim
 setup info remote:neovim
-setup init remote:neovim --set version=0.11.7 --dry-run
+setup init remote:neovim --dry-run
 ```
 
 | 指定 | 動作 |

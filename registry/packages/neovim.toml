@@ -1,9 +1,10 @@
 name = "neovim"
-version = 2
+version = 3
 description = "Versioned Neovim installation for Linux x86_64"
 
 [options.version]
-description = "Neovim release number, without v (required)"
+description = "latest for the latest stable release, or an explicit major.minor.patch"
+default = "latest"
 
 [options.prefix]
 description = "Absolute installation directory"
@@ -11,7 +12,8 @@ default = ""
 
 [init]
 description = """
-Neovim v{version}を指定先へ導入し、bin/nvimリンクを切り替えます。
+Neovimの指定版（version={version}）を導入し、bin/nvimリンクを切り替えます。
+latestは実行時に公式GitHub APIから最新安定版を解決し、解決した版番号を表示して導入します。
 prefixが空なら {home}/.local/share/menv/tools/neovim を使用します。
 既存の同じ版は再利用し、以前の版は残します。指定先のbin/nvimリンクは上書きします。
 システムの /usr/bin/nvim や /usr/local/bin/nvim は変更しません。
@@ -24,6 +26,10 @@ version="$1"
 prefix="$2"
 if [ -z "$prefix" ]; then prefix="$3"; fi
 case "$prefix" in /*) ;; *) echo 'prefix must be absolute' >&2; exit 1 ;; esac
+if [ "$version" = latest ]; then
+    version="$(curl -fsSL --max-time 30 https://api.github.com/repos/neovim/neovim/releases/latest | "$4" -c 'import json,sys; release=json.load(sys.stdin); assert not release.get("draft") and not release.get("prerelease"), "expected stable release"; print(release["tag_name"].removeprefix("v"))')"
+    printf 'Resolved latest stable Neovim: v%s\n' "$version"
+fi
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'version must be major.minor.patch' >&2; exit 1; }
 case "$(uname -s):$(uname -m)" in Linux:x86_64) ;; *) echo 'this definition requires Linux x86_64' >&2; exit 1 ;; esac
 mkdir -p -- "$prefix"
@@ -40,12 +46,13 @@ fi
 test -x "$destination/bin/nvim"
 mkdir -p -- "$prefix/bin"
 ln -sfnT -- "$destination/bin/nvim" "$prefix/bin/nvim"
-''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim"],
+''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim", "{python}"],
 ]
 
 [update]
 description = """
-Neovim v{version}を指定先へ導入し、bin/nvimリンクを切り替えます。
+Neovimの指定版（version={version}）を導入し、bin/nvimリンクを切り替えます。
+latestは実行時に公式GitHub APIから最新安定版を解決し、解決した版番号を表示して導入します。
 prefixが空なら {home}/.local/share/menv/tools/neovim を使用します。
 既存の同じ版は再利用し、以前の版は残します。指定先のbin/nvimリンクは上書きします。
 システムの /usr/bin/nvim や /usr/local/bin/nvim は変更しません。
@@ -58,6 +65,10 @@ version="$1"
 prefix="$2"
 if [ -z "$prefix" ]; then prefix="$3"; fi
 case "$prefix" in /*) ;; *) echo 'prefix must be absolute' >&2; exit 1 ;; esac
+if [ "$version" = latest ]; then
+    version="$(curl -fsSL --max-time 30 https://api.github.com/repos/neovim/neovim/releases/latest | "$4" -c 'import json,sys; release=json.load(sys.stdin); assert not release.get("draft") and not release.get("prerelease"), "expected stable release"; print(release["tag_name"].removeprefix("v"))')"
+    printf 'Resolved latest stable Neovim: v%s\n' "$version"
+fi
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'version must be major.minor.patch' >&2; exit 1; }
 case "$(uname -s):$(uname -m)" in Linux:x86_64) ;; *) echo 'this definition requires Linux x86_64' >&2; exit 1 ;; esac
 mkdir -p -- "$prefix"
@@ -74,5 +85,5 @@ fi
 test -x "$destination/bin/nvim"
 mkdir -p -- "$prefix/bin"
 ln -sfnT -- "$destination/bin/nvim" "$prefix/bin/nvim"
-''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim"],
+''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim", "{python}"],
 ]

@@ -1,9 +1,9 @@
 {
   "packages": {
     "neovim": {
-      "version": 2,
+      "version": 3,
       "path": "packages/neovim.toml",
-      "sha256": "1289c7691fba393880df024ebffa90cd65de5b4fe2d6b676c72926981a63d4c8",
+      "sha256": "daeaae40658abf4814e4932b9e59921a3872d9916e87bfc543507f534f7e799b",
       "description": "Versioned Neovim installation for Linux x86_64"
     }
   }

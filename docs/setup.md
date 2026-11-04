@@ -86,11 +86,15 @@ init も update も指定された処理を実行します。既存バージョ�
 setup list
 setup search neovim
 setup info remote:neovim
-setup init remote:neovim --set version=0.11.7
-setup update remote:neovim --set version=0.11.7
+setup init remote:neovim
+setup update remote:neovim
 ```
 
-版番号は利用したい公開済みリリースを指定してください。同梱のNeovim定義は Linux x86_64 向けです。
+Neovimは既定の `version=latest` で、実行時に公式GitHub APIから最新安定版を取得します。nightlyは対象外です。
+以前の固定版設定を引き継いでいる場合は `setup update remote:neovim --set version=latest` で切り替えます。
+固定したい場合は `--set version=0.12.6` のように公開済みの版を明示します。
+`--dry-run` はlatest解決前の計画を表示します。`--offline` でも実際のlatest解決・未導入版のダウンロードには通信が必要です。
+同梱のNeovim定義は Linux x86_64 向けです。
 版別ディレクトリに展開し、導入先の bin/nvim を切り替えます。PATHへの追加は手動です。
 
 既定URLは `https://monerinngu0.github.io/.menv/` です。
@@ -98,6 +102,8 @@ setup update remote:neovim --set version=0.11.7
 `Publish setup registry` workflow を手動実行します。
 この workflow は既存の Pages 公開先を置き換えるため、別用途の Pages がある場合は別レジストリを指定してください。
 コードをpushしただけではレジストリは公開されません。
+更新時も実行履歴やworkflowファイルを削除せず、Actions → Publish setup registry → Run workflowでmainを選んで新規実行します。
+過去の実行のRe-run jobsはその実行時のコミットを使うため、最新mainの公開にはRun workflowを使ってください。
 
 `MENV_SETUP_REGISTRY` または `--registry https://example.com/registry/` で別のHTTPSレジストリを使えます。
 更新時は対象を導入したレジストリを再利用します。`--registry` は明示的な変更になります。

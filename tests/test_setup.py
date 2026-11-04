@@ -310,10 +310,14 @@ unless_path = "exists"
         fakebin = self.base / 'neovim-fakebin'
         fakebin.mkdir()
         curl = fakebin / 'curl'
-        curl.write_text('#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\n'
-                        'cp "$NEOVIM_TEST_ARCHIVE" "$2"\n')
+        curl.write_text('#!/bin/sh\ncase "$*" in\n'
+                        '  *api.github.com/repos/neovim/neovim/releases/latest*)\n'
+                        '    printf \'{"tag_name":"v%s","draft":false,"prerelease":false}\\n\' "$NEOVIM_TEST_LATEST" ;;\n'
+                        '  *) while [ "$1" != "-o" ]; do shift; done\n'
+                        '     cp "$NEOVIM_TEST_ARCHIVE" "$2" ;;\nesac\n')
         curl.chmod(0o755)
-        self.env.update(PATH=str(fakebin) + ':' + os.environ['PATH'], NEOVIM_TEST_ARCHIVE=str(archive))
+        self.env.update(PATH=str(fakebin) + ':' + os.environ['PATH'],
+                        NEOVIM_TEST_ARCHIVE=str(archive), NEOVIM_TEST_LATEST='0.12.6')
         raw = (ROOT / 'registry/packages/neovim.toml').read_bytes()
         import tomllib
         revision = tomllib.loads(raw.decode())['version']
@@ -323,6 +327,9 @@ unless_path = "exists"
         (self.cache / 'index.json').write_text(json.dumps({'packages': {'neovim': {
             'version': revision, 'path': 'packages/neovim.toml', 'sha256': digest}}}))
         prefix = self.base / 'neovim install'
+        result = self.cli('init', 'remote:neovim', '--offline', '-y', '--set', f'prefix={prefix}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.6/bin/nvim')
         for action, version in [('init', '0.11.7'), ('init', '0.11.7'), ('update', '0.12.0')]:
             result = self.cli(action, 'remote:neovim', '--offline', '-y',
                               '--set', f'version={version}', '--set', f'prefix={prefix}')
@@ -331,9 +338,22 @@ unless_path = "exists"
             self.assertEqual((prefix / version / 'bin/nvim').stat().st_uid, os.getuid())
         self.assertTrue((prefix / '0.11.7/bin/nvim').exists())
         self.assertTrue((prefix / '0.12.0/bin/nvim').exists())
+        result = self.cli('update', 'remote:neovim', '--offline', '-y', '--set', 'version=latest')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Resolved latest stable Neovim: v0.12.6', result.stdout)
+        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.6/bin/nvim')
+        self.env['NEOVIM_TEST_LATEST'] = '0.12.7'
+        result = self.cli('update', '--all', '--offline', '-y')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.7/bin/nvim')
+        self.assertTrue((prefix / '0.12.6/bin/nvim').exists())
+        self.env['NEOVIM_TEST_LATEST'] = 'invalid'
+        result = self.cli('update', '--all', '--offline', '-y')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.7/bin/nvim')
         result = self.cli('update', 'remote:neovim', '--offline', '-y', '--set', 'version=..')
         self.assertEqual(result.returncode, 1)
-        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.0/bin/nvim')
+        self.assertEqual((prefix / 'bin/nvim').resolve(), prefix / '0.12.7/bin/nvim')
 
 
 if __name__ == '__main__':
