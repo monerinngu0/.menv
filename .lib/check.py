@@ -148,10 +148,10 @@ def safe_extract_tar(archive: Path, dest: Path) -> bool:
             for member in tf.getmembers():
                 target = (dest / member.name).resolve()
 
-                if not str(target).startswith(str(base)):
+                if not target.is_relative_to(base):
                     return False
 
-            tf.extractall(dest)
+            tf.extractall(dest, filter="data")
 
         return True
     except Exception:

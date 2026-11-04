@@ -75,32 +75,37 @@ tmux 内ではパススルーの許可が必要で、screen や多重 tmux な�
 端末・中継ソフトの長さ制限によって大きなテキストが無視・切り詰められる場合があります。
 OSC 52 は成功応答を返さないため、終了コード 0 は送信完了を示すだけです。実際の貼り付け内容を確認してください。コピー処理に失敗した場合の終了コードは 1 です。
 
-## mcheck
+## setup
 
-.toml に基づき、システムパッケージ、ツール、venv、pip パッケージ、コマンドを確認します。
+TOMLに書かれた処理を、条件入力・実行内容の確認後に実行します。
 
 ```bash
-mcheck kyopro
-mcheck kyopro --install
-mcheck kyopro --update
-mcheck kyopro --sync --strict
+setup init kyopro
+setup update kyopro
+setup update --all
+setup list --local
+setup list
+setup search neovim
+setup info remote:neovim
+setup init remote:neovim --set version=0.11.7 --dry-run
 ```
 
-| 引数 | 動作 |
+| 指定 | 動作 |
 | --- | --- |
-| 環境名なし / . | 現在の環境。環境外では共通環境 |
-| menv / '~' | 共通環境 |
-| kyopro / menv/kyopro / '~/kyopro' | 指定した環境 |
-| .. | 現在の環境の親 |
-| --install | 環境内の不足依存だけを導入 |
-| --update | [update] の環境内依存だけを更新 |
-| --sync | 導入と更新を両方実行 |
-| --strict | 検査結果に NG があれば終了コード 1 |
+| `local:<name>` / `remote:<name>` | 出所を明示 |
+| `<name>` | 同名ならLocal優先 |
+| `--set key=value` | オプションを指定（繰り返し可能） |
+| `--dry-run` | 展開済み計画を表示。実行・導入登録しない |
+| `-y` / `--yes` | 前回値・デフォルトを使い、表示した計画を承認 |
+| `--workdir PATH` | Remoteの作業場所 |
+| `--offline` | Remoteの取得済みキャッシュだけを使う |
+| `--registry URL` | HTTPSレジストリを指定 |
+| `list/search --local` | Localのみ列挙し、通信しない |
 
-[check] は検査だけです。--install / --sync でもシステムパッケージやグローバルコマンドは導入しません。
-通常の検査でも [update].pip と [[update.github]] の更新確認を実行します。
---strict がなければ検査結果が NG でも通常は終了コード 0 です。引数や設定のエラーは別途失敗します。
-名前の解決は me と異なり、通常の環境名は envs/ 直下から指定します。
+`info` は未展開の定義・オプションを表示します。実際の引数は `init/update --dry-run` で確認します。
+`update --all` は成功したinitの記録だけを使い、保存した出所・値・作業場所を再利用します。
+一括更新時に全件共通の `--set` / `--workdir` は指定できません。
+冪等性やバージョン方針は各定義に委ねます。詳細は [導入手順](setup.md) と [TOML仕様](configuration.md) を参照してください。
 
 ## mchmod
 

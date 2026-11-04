@@ -1,0 +1,78 @@
+name = "neovim"
+version = 1
+description = "Versioned Neovim installation for Linux x86_64"
+
+[options.version]
+description = "Neovim release number, without v (required)"
+
+[options.prefix]
+description = "Absolute installation directory"
+default = ""
+
+[init]
+description = """
+Neovim v{version}を指定先へ導入し、bin/nvimリンクを切り替えます。
+prefixが空なら {home}/.local/share/menv/tools/neovim を使用します。
+既存の同じ版は再利用し、以前の版は残します。指定先のbin/nvimリンクは上書きします。
+システムの /usr/bin/nvim や /usr/local/bin/nvim は変更しません。
+利用するには指定先のbinをPATHへ追加してください。
+"""
+commands = [
+    ["bash", "-c", '''
+set -euo pipefail
+version="$1"
+prefix="$2"
+if [ -z "$prefix" ]; then prefix="$3"; fi
+case "$prefix" in /*) ;; *) echo 'prefix must be absolute' >&2; exit 1 ;; esac
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'version must be major.minor.patch' >&2; exit 1; }
+case "$(uname -s):$(uname -m)" in Linux:x86_64) ;; *) echo 'this definition requires Linux x86_64' >&2; exit 1 ;; esac
+mkdir -p -- "$prefix"
+prefix="$(cd -- "$prefix" && pwd)"
+destination="$prefix/$version"
+if [ ! -d "$destination" ]; then
+    temporary="$(mktemp -d "$prefix/.download.XXXXXX")"
+    trap 'rm -rf -- "$temporary"' EXIT
+    curl -fL "https://github.com/neovim/neovim/releases/download/v$version/nvim-linux-x86_64.tar.gz" -o "$temporary/nvim.tar.gz"
+    tar -xzf "$temporary/nvim.tar.gz" -C "$temporary"
+    test -x "$temporary/nvim-linux-x86_64/bin/nvim"
+    mv -- "$temporary/nvim-linux-x86_64" "$destination"
+fi
+test -x "$destination/bin/nvim"
+mkdir -p -- "$prefix/bin"
+ln -sfnT -- "$destination/bin/nvim" "$prefix/bin/nvim"
+''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim"],
+]
+
+[update]
+description = """
+Neovim v{version}を指定先へ導入し、bin/nvimリンクを切り替えます。
+prefixが空なら {home}/.local/share/menv/tools/neovim を使用します。
+既存の同じ版は再利用し、以前の版は残します。指定先のbin/nvimリンクは上書きします。
+システムの /usr/bin/nvim や /usr/local/bin/nvim は変更しません。
+利用するには指定先のbinをPATHへ追加してください。
+"""
+commands = [
+    ["bash", "-c", '''
+set -euo pipefail
+version="$1"
+prefix="$2"
+if [ -z "$prefix" ]; then prefix="$3"; fi
+case "$prefix" in /*) ;; *) echo 'prefix must be absolute' >&2; exit 1 ;; esac
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'version must be major.minor.patch' >&2; exit 1; }
+case "$(uname -s):$(uname -m)" in Linux:x86_64) ;; *) echo 'this definition requires Linux x86_64' >&2; exit 1 ;; esac
+mkdir -p -- "$prefix"
+prefix="$(cd -- "$prefix" && pwd)"
+destination="$prefix/$version"
+if [ ! -d "$destination" ]; then
+    temporary="$(mktemp -d "$prefix/.download.XXXXXX")"
+    trap 'rm -rf -- "$temporary"' EXIT
+    curl -fL "https://github.com/neovim/neovim/releases/download/v$version/nvim-linux-x86_64.tar.gz" -o "$temporary/nvim.tar.gz"
+    tar -xzf "$temporary/nvim.tar.gz" -C "$temporary"
+    test -x "$temporary/nvim-linux-x86_64/bin/nvim"
+    mv -- "$temporary/nvim-linux-x86_64" "$destination"
+fi
+test -x "$destination/bin/nvim"
+mkdir -p -- "$prefix/bin"
+ln -sfnT -- "$destination/bin/nvim" "$prefix/bin/nvim"
+''', "menv-neovim", "{version}", "{prefix}", "{home}/.local/share/menv/tools/neovim"],
+]

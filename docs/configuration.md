@@ -1,106 +1,110 @@
 # 設定とプラグイン構成
 
-## 依存定義 .toml
+## セットアップ定義 .toml
 
-共通環境はルートの .toml、各環境は envs/<name>/.toml を使用します。
-mcheck は指定した環境のファイルを読み、祖先の依存定義は自動合成しません。
+Local は `envs/<name>/.toml` を探索します。共通環境はルートの `.toml`（`local:menv`）です。
+子envの定義は独立し、祖先の定義を自動実行しません。
+旧mcheck形式は受け付けず、未知のキーも入力ミスとして拒否します。
 
 ```toml
-[check]
-commands = ["g++", "oj"]
-packages = ["g++"]
+name = "example"
+version = 1
+description = "Example setup"
 
-[install]
-tools = []
+[options.branch]
+description = "Clone branch"
+default = "main"
+choices = ["main", "develop"]
 
-[venv]
-path = ".venv"
-python = "python3"
-packages = ["online-judge-tools"]
+[init]
+description = "{branch}をrepoへcloneします。既にrepo/.gitがあればスキップします。"
+
+[[init.steps]]
+run = ["git", "clone", "--branch", "{branch}", "https://github.com/example/repo.git", "repo"]
+unless_path = "repo/.git"
 
 [update]
-pip = ["online-judge-tools"]
-tools = []
+description = "repoをfast-forwardで更新します。"
+commands = [
+    ["git", "-C", "repo", "pull", "--ff-only"],
+]
 ```
 
-| 項目 | 用途 |
+`name` はLocalのenv名またはRemoteのindexのキーと一致させます。ネストしたenvは `parent/child`。
+`version` は1以上の整数で、定義を変更したら増やします。ソフトウェア本体のバージョンとは独立です。
+共通・各アクションの `description` は必須です。影響、既存ファイルの上書き、更新方針を記述します。
+`init` は必須、`update` は任意。update未定義の対象の更新はエラーになります。
+
+各アクションは `commands` と `steps` の片方だけを指定します。空配列は拒否します。
+`commands` は非空の引数配列の列、`steps` は `run` と任意の `cwd` / `unless_path` を持つテーブルの列です。
+各プロセスは独立しています。`cd`、シェル変数、export は次のプロセスへ引き継がれません。
+実行は `shell=False`。パイプや条件分岐が必要なら `['bash', '-euc', '...']` を明示的に定義します。
+
+## オプションと展開
+
+オプション値はすべて文字列です。`description` は必須、`default` と文字列配列 `choices` は任意です。
+デフォルトなしの値は必須入力になります。`choices` があれば入力をその一覧に限定します。
+対話端末では各値を入力し、空入力は前回値またはデフォルトを採用します。
+`--set key=value` は繰り返し指定できます。未知のキー、重複指定はエラーです。
+`-y` または非対話入力では質問せず、明示値 → 前回値 → デフォルトの順に採用します。
+必要な値がなければ実行せずに失敗します。
+
+コマンド各引数・説明・cwd・unless_path の `{name}` を1回だけ置換します。
+オプション値自体は展開しません。`$HOME` や `~` を入力値として渡しても、引数内では自動展開しません。
+入力した空白、クォート、`;`、`$()` は1つの引数の内容です。
+シェルを使う定義では入力値をコードに直接埋めず、位置引数として渡してください。
+リテラルの波括弧は `{{` / `}}`。シェルの `${name}` は置換しません。
+
+| 組み込み変数 | 内容 |
 | --- | --- |
-| [check].commands | PATH と環境内でのコマンドの存在確認のみ |
-| [check].packages | dpkg によるシステムパッケージの確認のみ |
-| [install].tools | 環境の .tools 内に導入するツール |
-| [venv].path | 環境内の仮想環境パス。既定 .venv |
-| [venv].python | venv 作成に使う既存 Python。既定 python3 |
-| [venv].packages | ローカル venv に導入する pip パッケージ。name @ URL も対応 |
-| [update].pip | PyPI から更新確認・更新する pip パッケージ名 |
-| [update].tools | 環境の tools.py の更新フックを呼ぶツール名 |
+| `{root}` | MENV_ROOTの絶対パス |
+| `{env}` / `{work}` | 当該定義の作業場所 |
+| `{home}` | ユーザーのホーム |
+| `{python}` | setup実行中のPython |
+| `{data}` | XDG_DATA_HOME/menv/setup |
+| `{cache}` | XDG_CACHE_HOME/menv/setup |
+| `{state}` | XDG_STATE_HOME/menv/setup |
 
---install / --sync でも apt、sudo、グローバル pip は実行しません。
-Python 自体・venv モジュール・コンパイラなどはユーザーが管理します。
-旧 [system].packages と [commands].names は検査専用として互換対応し、[tools].names は [install].tools の旧形式として受け付けます。
+これらの名前をオプション名には使えません。未知の `{name}` は計画作成時のエラーです。
 
-venv の絶対パス・環境外へのパス・外への symlink は拒否します。
-既存 venv は Python の sys.prefix を確認し、システムパッケージを継承する venv は拒否します。
-pip の書き込み先を変える環境変数・設定ファイルも無効にします。
-.tools とその中の外向き symlink も拒否します。
-ツールのフックは信頼するリポジトリ内の Python コードで、OS のサンドボックスではありません。
-フックは .tools 内だけを書き換える契約とします。
-現在の me と競プロラッパーは .venv/bin を使用するため、通常は [venv].path を変更しません。
+Localの作業場所は各envのルート。Remoteは専用作業場所または `--workdir` で指定した場所です。
+stepの相対 `cwd` はこの作業場所が基準（既定 `.`）。相対 `unless_path` はそのstepのcwdが基準です。
+作業場所は承認後に作成します。stepで別のcwdを使う場合は、先行stepで用意してください。
+`unless_path` はそのstepの実行直前に評価するため、先行stepで作ったファイルも確認できます。
 
-## GitHub リリースによる更新判定
+確認した計画をそのまま実行し、途中でTOMLの再取得・再解析はしません。
+呼び出し先スクリプトやネットワーク配布物の内容は別途変化し得ます。信頼する定義を使用してください。
+冪等性、インストール先、ソフトの版管理は定義作成者の責任で、任意コマンドをOSから隔離する仕組みではありません。
 
-```toml
-[venv]
-path = ".venv"
-packages = ["yt-dlp"]
+## Remote定義を追加する
 
-[update]
-pip = []
-tools = []
+`registry/packages/<name>.toml` を作り、次を実行します。
 
-[[update.github]]
-package = "yt-dlp"
-repository = "https://github.com/yt-dlp/yt-dlp"
-tag_prefix = "v" # 省略時も v。タグに付いていなければそのまま
+```bash
+python3 scripts/build_registry.py
+python3 scripts/build_registry.py --check
 ```
 
-GitHub の最新安定版リリースの tag_name と、venv に導入済みのパッケージバージョンを比較します。
-通常実行では確認だけ、新しい版がある場合に --update / --sync でその版を PyPI から導入します。
-最新版と同じ、またはローカルの方が新しい場合は何もしません。
-GitHub の main ブランチから直接インストールする方式ではありません。
-タグが pip バージョンに対応するプロジェクトが対象で、package は [venv].packages にも宣言します。
-GitHub と PyPI の公開タイミングがずれ、指定版が PyPI にまだない場合は失敗として表示します。
-GitHub API の通信失敗・レート制限・比較できないタグも失敗として扱い、推測で更新しません。
---strict なら確認失敗や更新待ちも終了コード 1 になります。
-この方式は pip パッケージ向けです。.tools の更新は既存のツールフックを使います。
-ツールは通常の検査では導入済みか確認するだけで、最新版かは判定しません。
+`registry/index.json` に path・version・SHA-256・説明が生成されます。
+両方をcommitし、Pages公開workflowを実行します。レジストリのbase URLはHTTPSが必須です。
+取得した定義はレジストリURL別・内容ハッシュ別にキャッシュします。
+公開方法と通信失敗時の扱いは [導入手順](setup.md#remote-レジストリ) を参照してください。
 
 ## 環境を追加する
 
-envs/<name>/ に必要な構成を作ります。
-
 | パス | 役割 |
 | --- | --- |
-| .bin/<command> | コマンドの入口 |
-| .lib/ | 実装 |
-| .toml | 依存定義 |
-| .venv/ | Python 仮想環境（生成物） |
-| .tools/ | 環境専用ツール（生成物） |
-| .name | 祖先環境のプロンプト用省略名（任意） |
+| `.bin/<command>` | コマンドの入口 |
+| `.lib/` | 各env固有の実装、導入用スクリプト |
+| `.toml` | init/update定義 |
+| `.venv/` | Python仮想環境（生成物） |
+| `.tools/` | 環境専用ツール（生成物） |
+| `.name` | 祖先環境のプロンプト用省略名（任意） |
 
-ツール管理を追加する場合は .lib/tools.py に次の関数を用意します。
+setup本体へenv固有のフックを登録する必要はありません。
+同梱定義は `.lib/venv_tools.py` を明示的に呼んで隔離venvを作成し、pipの書き込み先設定を無効にして導入します。
+songは自身の `.lib/tools.py` を呼び、ffmpegとdenoを導入します。
+サーバー拡張は `.lib/server/routes.py` の `register(router)` で登録します。
 
-```python
-def has_tool(name: str) -> bool: ...
-def install_tool(name: str) -> bool: ...
-def update_tool(name: str) -> bool: ...
-```
-
-実装例は [song の tools.py](../envs/song/.lib/tools.py) です。
-サーバー拡張は .lib/server/routes.py の register(router) で登録します。
-.bin のラッパーを追加する際は実装ファイルが存在することを確認し、実装を削除したらラッパーとドキュメントも削除します。
-
-## コマンド固有の設定
-
-競プロの動作設定は envs/kyopro/.config（TOML）です。
-依存を導入する .toml とは役割が異なります。[競プロ設定](kyopro.md#設定)を参照してください。
-音楽ワークスペースの .config/ は、作業データ側のディレクトリです。
+競プロの動作設定は `envs/kyopro/.config`（TOML）、音楽ワークスペースの `.config/` は作業データ側のディレクトリです。
+セットアップ定義とは役割が異なります。[競プロ設定](kyopro.md#設定)も参照してください。

@@ -3,7 +3,7 @@
 ## 準備とワークスペース
 
 ```bash
-mcheck song --install
+setup init song
 me song
 sinit ~/music
 cd ~/music
@@ -12,8 +12,8 @@ scat favorites
 
 song 環境の依存は yt-dlp、ffmpeg / ffprobe、deno です。
 yt-dlp は .venv、ffmpeg / deno は .tools 内で管理します。
-`mcheck song` で GitHub の yt-dlp 安定版を確認し、`mcheck song --update` で必要な場合だけ更新します。
-設定方法は [GitHub 更新設定](configuration.md#github-リリースによる更新判定) を参照してください。
+`setup update song` でyt-dlpをPyPIから更新し、ffmpeg / denoを配布元から入れ替えます。
+実行内容は [songの定義](../envs/song/.toml) と確認画面で確認できます。
 sinit は .config/workspace と .config/config.json を作成します。
 カテゴリの音源は <category>/song/、一覧は <category>/.config/song.json に保存します。
 

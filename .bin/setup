@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+MENV_ROOT="${MENV_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
+export MENV_ROOT
+source "$MENV_ROOT/.lib/python.sh"
+setup_python="$(menv_python)"
+exec "$setup_python" "$MENV_ROOT/envs/setup/.lib/main.py" "$@"

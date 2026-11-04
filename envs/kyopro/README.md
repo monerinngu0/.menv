@@ -3,7 +3,7 @@
 コンテスト情報・サンプル取得、C++ / Python のローカルテスト、提出用ソース生成、提出を行う環境です。
 
 ```bash
-mcheck kyopro --install
+setup init kyopro
 me kyopro
 knew abc400
 kls

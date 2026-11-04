@@ -195,3 +195,13 @@ def update_tool(name: str) -> bool:
 
     print(f"unknown song tool: {name}", file=sys.stderr)
     return False
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3 or sys.argv[1] not in ("init", "update"):
+        raise SystemExit("usage: tools.py init|update ffmpeg|deno ...")
+    for tool in sys.argv[2:]:
+        if sys.argv[1] == "init" and has_tool(tool):
+            continue
+        if not install_tool(tool):
+            raise SystemExit(1)

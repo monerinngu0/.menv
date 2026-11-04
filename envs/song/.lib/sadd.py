@@ -255,12 +255,12 @@ def build_fetch_playlist_command(url: str) -> list[str]:
 
     if ytdlp is None:
         ng("yt-dlp not found")
-        info("run: mcheck song --install")
+        info("run: setup init song")
         sys.exit(1)
 
     if deno is None:
         ng("song deno not found")
-        info("run: mcheck song --install")
+        info("run: setup init song")
         sys.exit(1)
 
     return [

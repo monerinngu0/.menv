@@ -6,14 +6,15 @@ on:
 permissions:
   contents: read
 jobs:
-  mcheck:
+  check:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Test mcheck boundaries and update decisions
+      - name: Test commands and setup
         run: python3 -m unittest discover -s tests -v
       - name: Check syntax
         run: |
-          bash -n .bin/mcheck
-          python3 -m compileall -q .lib
+          for script in .bin/setup bootstrap.sh .lib/python.sh; do bash -n "$script"; done
+          python3 -m compileall -q .lib envs/setup/.lib
+          python3 scripts/build_registry.py --check
           git diff --check
