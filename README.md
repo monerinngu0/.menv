@@ -5,26 +5,26 @@ Bash で用途ごとの開発環境を切り替える個人用ツールです。
 
 ## 導入
 
-Ubuntu / Debian 系 Linux または WSL、Bash、Git、Python 3.11 以上と venv を想定しています。
+Ubuntu / Debian 系 Linux または WSL、Bash、Git を想定しています。bootstrap が互換Pythonを確認し、必要なら専用Pythonを用意します。
 
 ```bash
 git clone https://github.com/monerinngu0/.menv.git "$HOME/.menv"
+bash "$HOME/.menv/bootstrap.sh"
 ```
 
 `~/.bashrc` に次を追加します。
 
 ```bash
 export MENV_ROOT="$HOME/.menv"
-export PATH="$MENV_ROOT/.bin:$PATH"
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/menv/runtime/bin:$MENV_ROOT/.bin:$PATH"
 me() { source "$MENV_ROOT/.bin/me" "$@"; }
 ```
 
 新しい Bash を開き、必要な環境を準備します。
 
 ```bash
-mchmod --dry-run
-mchmod
-mcheck kyopro --install
+setup init kyopro --dry-run
+setup init kyopro
 me kyopro
 ```
 
@@ -58,7 +58,9 @@ cat main.cpp | clip  # 共通クリップボード。me kyopro は不要
 | --- | --- |
 | `.bin/` | 共通コマンドの入口 |
 | `.lib/` | 共通実装、HTTP サーバー |
-| `.toml` | 共通環境の依存定義 |
+| `.toml` | 共通環境のinit/update定義 |
+| `envs/setup/` | TOMLの解析、取得、確認、実行 |
+| `registry/` | GitHub Pages向けRemote定義 |
 | `envs/kyopro/` | コンテスト取得、テスト、提出用ソース生成、提出 |
 | `envs/song/` | 音楽ワークスペース、一覧、差分、パッケージ化 |
 | `home/` | ホームへ手動配置するファイルの保管場所 |

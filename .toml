@@ -1,10 +1,15 @@
-[check]
-commands = []
-packages = []
+name = "menv"
+version = 1
+description = "menv common Python environment"
 
-[install]
-tools = []
+[init]
+description = "共通の .venv を作成します。既存の隔離venvは維持します。"
+commands = [
+    ["{python}", "{root}/.lib/venv_tools.py", "ensure", "{env}/.venv"],
+]
 
-[venv]
-path = ".venv"
-packages = []
+[update]
+description = "共通venvのpipを更新します。システムPythonには書き込みません。"
+commands = [
+    ["{python}", "{root}/.lib/venv_tools.py", "update", "{env}/.venv", "pip"],
+]

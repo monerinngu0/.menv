@@ -1,26 +1,21 @@
-[check]
+name = "kyopro"
+version = 1
+description = "Competitive programming environment"
+
+[init]
+description = """
+g++の存在を確認し、このenvの .venv を作成してoj関連パッケージを導入します。
+既存venvを再利用します。g++とgpp、自作ライブラリは別途用意してください。
+システムへのpipインストールは行いません。
+"""
 commands = [
-  "g++",
-  "oj",
-]
-packages = [
-  "g++",
-]
-
-[install]
-tools = []
-
-[venv]
-path = ".venv"
-packages = [
-  "setuptools",
-  "online-judge-tools",
-  "online-judge-api-client @ git+https://github.com/online-judge-tools/api-client.git",
+    ["g++", "--version"],
+    ["{python}", "{root}/.lib/venv_tools.py", "ensure", "{env}/.venv"],
+    ["{python}", "{root}/.lib/venv_tools.py", "install", "{env}/.venv", "setuptools", "online-judge-tools", "online-judge-api-client @ git+https://github.com/online-judge-tools/api-client.git"],
 ]
 
 [update]
-pip = [
-  "online-judge-tools",
+description = "このenvのoj関連パッケージを更新します。コンパイラは変更しません。"
+commands = [
+    ["{python}", "{root}/.lib/venv_tools.py", "update", "{env}/.venv", "setuptools", "online-judge-tools", "online-judge-api-client @ git+https://github.com/online-judge-tools/api-client.git"],
 ]
-
-tools = []

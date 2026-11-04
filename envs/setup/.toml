@@ -1,0 +1,15 @@
+name = "setup"
+version = 1
+description = "Setup runtime bootstrap"
+
+[init]
+description = "互換Pythonを確認します。なければ専用runtimeにuvとPython 3.13を導入します。"
+commands = [
+    ["bash", "{root}/bootstrap.sh", "--yes"],
+]
+
+[update]
+description = "専用runtimeのuvを取得し直し、Python 3.13の最新パッチへ更新してruntime内のpython3リンクを設定します。システムPythonは変更しません。"
+commands = [
+    ["bash", "{root}/bootstrap.sh", "--managed", "--yes"],
+]

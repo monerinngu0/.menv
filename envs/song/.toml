@@ -1,28 +1,25 @@
-[check]
+name = "song"
+version = 1
+description = "Music management environment"
+
+[init]
+description = """
+このenvの .venv にyt-dlpを導入します。
+ffmpeg/ffprobeとdenoが未導入なら、配布元から .tools 内にダウンロードします。
+既存の .venv / .tools を再利用します。システムのツールは変更しません。
+"""
 commands = [
-  "ffmpeg",
-  "ffprobe",
-  "deno",
-]
-packages = []
-
-[install]
-tools = [
-  "ffmpeg",
-  "deno",
-]
-
-[venv]
-path = ".venv"
-packages = [
-  "yt-dlp",
+    ["{python}", "{root}/.lib/venv_tools.py", "ensure", "{env}/.venv"],
+    ["{python}", "{root}/.lib/venv_tools.py", "install", "{env}/.venv", "yt-dlp"],
+    ["{python}", "{env}/.lib/tools.py", "init", "ffmpeg", "deno"],
 ]
 
 [update]
-pip = []
-
-tools = []
-
-[[update.github]]
-package = "yt-dlp"
-repository = "https://github.com/yt-dlp/yt-dlp"
+description = """
+このenvのyt-dlpをPyPIの最新版に更新し、ffmpeg/ffprobeとdenoを配布元の最新版に入れ替えます。
+.tools 内の既存ファイルを上書きします。システムのツールは変更しません。
+"""
+commands = [
+    ["{python}", "{root}/.lib/venv_tools.py", "update", "{env}/.venv", "yt-dlp"],
+    ["{python}", "{env}/.lib/tools.py", "update", "ffmpeg", "deno"],
+]
