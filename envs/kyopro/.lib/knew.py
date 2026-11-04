@@ -177,10 +177,11 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "-p",
         "--problems",
         nargs="+",
         metavar="LABEL",
-        help="problem labels (required with --manual)",
+        help="space- or comma-separated problem labels (required with --manual)",
     )
 
     parser.add_argument(
@@ -213,7 +214,11 @@ def main() -> None:
             root = local.create_contest(
                 args.contest,
                 destination=args.directory,
-                labels=args.problems,
+                labels=[
+                    label.strip()
+                    for group in args.problems
+                    for label in group.split(",")
+                ],
             )
         else:
             config = load_config()

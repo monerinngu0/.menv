@@ -45,6 +45,23 @@ class KnewTests(unittest.TestCase):
         for label in ('a', 'B', 'ex'):
             self.assertEqual(list((root / label).iterdir()), [])
 
+    def test_space_comma_and_mixed_labels_with_both_option_names(self):
+        for option in ('--problems', '-p'):
+            for labels in (('a', 'B', 'ex'), ('a,B,ex',), ('a,B', 'ex'), ('a, B, ex',)):
+                with self.subTest(option=option, labels=labels):
+                    name = f'practice{len(list(self.root.iterdir()))}'
+                    result = self.cli(name, '--manual', option, *labels)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    contest = load_contest(self.root / name)
+                    self.assertEqual([p.label for p in contest.problems], ['a', 'B', 'ex'])
+
+    def test_empty_comma_fields_and_duplicates_create_nothing(self):
+        for labels in (('a,,b',), (',a',), ('a,',), (',',), ('a,a',), ('a,b', 'b'), ('a,   ,b',)):
+            with self.subTest(labels=labels):
+                result = self.cli('practice', '--manual', '-p', *labels)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertFalse((self.root / 'practice').exists())
+
     def test_invalid_argument_combinations_create_nothing(self):
         for args in (
             ('--manual',), ('--manual', '--problems'),

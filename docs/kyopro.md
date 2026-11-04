@@ -20,11 +20,15 @@ knew はコンテスト情報と、既定ではサンプルを取得します。
 
 ```bash
 knew practice --manual --problems a b c
+knew practice --manual -p a,b,c
 knew practice --manual --problems a B ex --directory ~/contests
 ```
 
 `--manual` は通信せず、`.contest` と各問題の空ディレクトリを作ります。
-`--problems` で問題名を1個以上指定します。指定順と大文字・小文字を保持します。
+`--problems`（短縮形 `-p`）で問題名を1個以上指定します。
+空白区切り `a b c` とカンマ区切り `a,b,c` に対応し、`a,b c` のような混在も可能です。
+各問題名の前後の空白を除去し、指定順と大文字・小文字を保持します。
+`a,,b` や `a,` のような空の問題名と、区切り方にかかわらず重複する問題名は拒否します。
 ソースやテストケースは生成しません。コンテスト直下に `a.cpp` / `a.py`、
 問題ディレクトリに `a/in1` / `a/out1` などを手動で配置します。
 
