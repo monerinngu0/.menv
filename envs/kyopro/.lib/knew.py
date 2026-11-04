@@ -171,6 +171,19 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--manual",
+        action="store_true",
+        help="create a local contest without network access",
+    )
+
+    parser.add_argument(
+        "--problems",
+        nargs="+",
+        metavar="LABEL",
+        help="problem labels (required with --manual)",
+    )
+
+    parser.add_argument(
         "--site",
         default=None,
         metavar="SITE",
@@ -182,33 +195,54 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if args.manual:
+        if args.problems is None:
+            parser.error("--manual requires --problems")
+        if args.site is not None:
+            parser.error("--manual cannot be combined with --site")
+        if args.download is not None:
+            parser.error(
+                "--manual cannot be combined with --download or --no-download"
+            )
+    elif args.problems is not None:
+        parser.error("--problems requires --manual")
+
     try:
-        config = load_config()
+        if args.manual:
+            local = get_site("local")
+            root = local.create_contest(
+                args.contest,
+                destination=args.directory,
+                labels=args.problems,
+            )
+        else:
+            config = load_config()
 
-        site_name = (
-            args.site
-            if args.site is not None
-            else config.defaults.site
-        )
+            site_name = (
+                args.site
+                if args.site is not None
+                else config.defaults.site
+            )
 
-        download_samples = (
-            args.download
-            if args.download is not None
-            else config.knew.download_samples
-        )
+            download_samples = (
+                args.download
+                if args.download is not None
+                else config.knew.download_samples
+            )
 
-        root = create_contest(
-            args.contest,
-            site_name=site_name,
-            destination=args.directory,
-            download_samples=download_samples,
-        )
+            root = create_contest(
+                args.contest,
+                site_name=site_name,
+                destination=args.directory,
+                download_samples=download_samples,
+            )
 
     except (
         ConfigError,
         ContestError,
         KnewError,
         SiteError,
+        OSError,
     ) as error:
         print(
             f"[ERROR] {error}",
@@ -222,4 +256,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()  
+    main()

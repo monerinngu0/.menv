@@ -16,6 +16,33 @@ knew はコンテスト情報と、既定ではサンプルを取得します。
 .contest にメタデータ、各問題名のディレクトリにテストを保存します。
 ソースファイルのテンプレートは生成しないため、コンテスト直下に a.cpp / a.py などを作成します。
 
+## 手動コンテスト作成
+
+```bash
+knew practice --manual --problems a b c
+knew practice --manual --problems a B ex --directory ~/contests
+```
+
+`--manual` は通信せず、`.contest` と各問題の空ディレクトリを作ります。
+`--problems` で問題名を1個以上指定します。指定順と大文字・小文字を保持します。
+ソースやテストケースは生成しません。コンテスト直下に `a.cpp` / `a.py`、
+問題ディレクトリに `a/in1` / `a/out1` などを手動で配置します。
+
+`.contest` は既存形式のまま、`site = "local"`、`id` はコンテスト名、
+`url` は `local://practice` になります。各問題の `label` と `id` は指定した問題名、
+`url` は `local://practice/a` の形式です。これらの URL はローカル用の識別子です。
+
+`--manual` と `--site`・`--download`・`--no-download` は併用できません。
+`--problems` は manual mode 専用です。manual mode は設定ファイルを読み込まず、
+既定サイトとサンプル取得設定も適用しません。
+コンテスト名・問題名には空白だけの名前、`.`、`..`、`/`・`\`・NUL を含む名前を使えません。
+問題名の重複、予約名 `.contest` / `.build`、既存の保存先も作成前に拒否します。
+
+作成後は `ktest a`、`kbuild a.cpp --copy` をそのまま使えます。
+`ksub a` は提出用ソースを生成してコピーを試み、自動提出不可として終了コード 1 を返します。
+問題を増やす場合は `.contest` の `[[problems]]` をコピーして `label`・`id`・`url` を変更し、
+対応する問題ディレクトリを作ります。
+
 ## ローカルテスト
 
 ```bash
@@ -38,7 +65,7 @@ ktest solution.py
 ```
 
 追加ケースは in3 / out3 などを手動で配置します。
-現在の実装に --add-case、--list-cases、knew --manual はありません。
+現在の実装に --add-case、--list-cases はありません。
 
 ## 提出用ソースの生成
 
