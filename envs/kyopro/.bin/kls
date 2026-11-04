@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+
+MENV_ROOT="${MENV_ROOT:-$HOME/.menv}"
+KYOPRO_ROOT="$MENV_ROOT/envs/kyopro"
+
+exec "$KYOPRO_ROOT/.venv/bin/python" \
+  "$KYOPRO_ROOT/.lib/kls.py" \
+  "$@"
