@@ -7,7 +7,7 @@ config.default_domain = 'WSL:Ubuntu'
 -- Choose a WSL distribution for a new tab (Ubuntu or Ubuntu-Test).
 config.keys = {
   {
-    key = 'u',
+    key = 'o',
     mods = 'CTRL|SHIFT',
     action = wezterm.action.ShowLauncherArgs({ flags = 'DOMAINS', title = 'Select WSL distribution' }),
   },
