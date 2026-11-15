@@ -16,6 +16,22 @@ class ClipboardConfig:
     command: tuple[str, ...] = ()
 
 
+WINDOWS_CLIPBOARD_SCRIPT = """
+$ErrorActionPreference = "Stop"
+$reader = [System.IO.StreamReader]::new(
+    [Console]::OpenStandardInput(),
+    [System.Text.UTF8Encoding]::new($false),
+    $true
+)
+try {
+    $value = $reader.ReadToEnd()
+    Set-Clipboard -Value $value -ErrorAction Stop
+} finally {
+    $reader.Dispose()
+}
+"""
+
+
 COMMANDS = (
     ("clip.exe",),
     ("clip",),
@@ -33,11 +49,25 @@ def _copy_command(command: tuple[str, ...], data: bytes) -> bool:
     if executable and Path(executable).resolve() == wrapper.resolve():
         return False
     if executable and Path(executable).name.lower() == "clip.exe":
+        # clip.exe can leave the UTF-16 BOM as literal U+FEFF in the clipboard.
+        # PowerShell decodes UTF-8 explicitly and sets Unicode clipboard text.
+        powershell = shutil.which("powershell.exe")
+        if not powershell:
+            return False
         try:
-            # Windows Unicode input avoids the local ANSI code page.
-            data = b"\xff\xfe" + data.decode("utf-8").encode("utf-16-le")
+            data = data.decode("utf-8-sig").encode("utf-8")
         except UnicodeError:
             return False
+        encoded_script = base64.b64encode(
+            WINDOWS_CLIPBOARD_SCRIPT.encode("utf-16-le")
+        ).decode("ascii")
+        command = (
+            powershell,
+            "-NoProfile",
+            "-NonInteractive",
+            "-EncodedCommand",
+            encoded_script,
+        )
     try:
         completed = subprocess.run(
             command,
