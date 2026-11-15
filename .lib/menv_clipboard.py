@@ -74,7 +74,7 @@ def _copy_command(command: tuple[str, ...], data: bytes) -> bool:
             input=data,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=5,
+            timeout=15 if Path(command[0]).name.lower() == "powershell.exe" else 5,
         )
     except (OSError, subprocess.SubprocessError):
         return False
