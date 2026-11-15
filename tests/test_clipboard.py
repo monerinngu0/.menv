@@ -95,12 +95,34 @@ class ClipboardTests(unittest.TestCase):
             self.assertFalse(clipboard.copy_bytes(self.data))
             command.assert_not_called()
 
-    def test_clip_exe_receives_unicode_in_auto_and_command_modes(self):
-        data = '日本語 😀\n'.encode()
+    def test_clip_exe_uses_powershell_with_utf8_without_bom(self):
         for method in ('auto', 'command'):
-            with self.subTest(method=method), patch.object(clipboard.shutil, 'which', return_value='/windows/clip.exe'), patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
-                self.assertTrue(clipboard.copy_bytes(data, ClipboardConfig(method, ('clip.exe',))))
-                self.assertEqual(run.call_args.kwargs['input'], b'\xff\xfe' + data.decode().encode('utf-16-le'))
+            for value in ('#include <iostream>\\n', '// 日本語 😀\\n'):
+                with self.subTest(method=method, value=value):
+                    which = lambda name: {
+                        'clip.exe': '/windows/clip.exe',
+                        'powershell.exe': '/windows/powershell.exe',
+                    }.get(name)
+                    with patch.object(clipboard.shutil, 'which', side_effect=which), patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+                        self.assertTrue(clipboard.copy_bytes(value.encode(), ClipboardConfig(method, ('clip.exe',))))
+                    args = run.call_args.args[0]
+                    self.assertEqual(args[:3], ('/windows/powershell.exe', '-NoProfile', '-NonInteractive'))
+                    self.assertEqual(args[3], '-EncodedCommand')
+                    script = base64.b64decode(args[4]).decode('utf-16-le')
+                    self.assertIn('Set-Clipboard', script)
+                    self.assertIn('UTF8Encoding', script)
+                    self.assertEqual(run.call_args.kwargs['input'], value.encode())
+
+    def test_clip_exe_strips_input_utf8_bom(self):
+        data = b'\\xef\\xbb\\xbf' + '#include <iostream>\\n'.encode()
+        with patch.object(clipboard.shutil, 'which', side_effect=lambda name: '/windows/' + name), patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+            self.assertTrue(clipboard.copy_bytes(data, ClipboardConfig('command', ('clip.exe',))))
+        self.assertEqual(run.call_args.kwargs['input'], b'#include <iostream>\\n')
+
+    def test_clip_exe_missing_powershell_fails_cleanly(self):
+        with patch.object(clipboard.shutil, 'which', side_effect=lambda name: '/windows/clip.exe' if name == 'clip.exe' else None), patch.object(clipboard.subprocess, 'run') as run:
+            self.assertFalse(clipboard.copy_bytes(b'hello', ClipboardConfig('command', ('clip.exe',))))
+        run.assert_not_called()
 
     def test_auto_skips_itself_without_recursing(self):
         with patch.object(clipboard.shutil, 'which', side_effect=lambda name: str(ROOT / '.bin/clip') if name == 'clip' else None), patch.object(clipboard.subprocess, 'run') as run, patch.object(clipboard, '_copy_osc52', return_value=True):
