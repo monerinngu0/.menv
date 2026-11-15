@@ -44,7 +44,7 @@ Neovim では `:w !clip` で現在のバッファをコピーできます。yank
 | ローカル | clip.exe、clip、wl-copy、xclip、xsel の順に試し、最後に OSC 52 |
 
 menv 自身の `clip` はコピー先候補から除外し、再帰呼び出しを防ぎます。
-WSL の `clip.exe` には UTF-8 から BOM 付き UTF-16LE に変換して渡します。`iconv` や CP932 用の alias は不要です。
+WSL では `clip.exe` が利用可能な場合、PowerShell の `Set-Clipboard` を使って UTF-8 を Unicode テキストとしてコピーします。貼り付け内容に BOM を混入させないため、入力先頭の UTF-8 BOM は取り除きます。PowerShell が利用できないときはその方式を失敗とみなし、`auto` の次候補を試します。`iconv` や CP932 用の alias は不要です。
 その他の外部コマンドには入力のバイト列をそのまま渡します。
 
 方式を明示する場合は次のように指定できます。`--command` 以降はすべてコピー先コマンドの引数です。
