@@ -97,7 +97,7 @@ class ClipboardTests(unittest.TestCase):
 
     def test_clip_exe_uses_powershell_with_utf8_without_bom(self):
         for method in ('auto', 'command'):
-            for value in ('#include <iostream>\\n', '// 日本語 😀\\n'):
+            for value in ('#include <iostream>\n', '// 日本語 😀\n'):
                 with self.subTest(method=method, value=value):
                     which = lambda name: {
                         'clip.exe': '/windows/clip.exe',
@@ -114,10 +114,10 @@ class ClipboardTests(unittest.TestCase):
                     self.assertEqual(run.call_args.kwargs['input'], value.encode())
 
     def test_clip_exe_strips_input_utf8_bom(self):
-        data = b'\\xef\\xbb\\xbf' + '#include <iostream>\\n'.encode()
+        data = b'\xef\xbb\xbf' + '#include <iostream>\n'.encode()
         with patch.object(clipboard.shutil, 'which', side_effect=lambda name: '/windows/' + name), patch.object(clipboard.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
             self.assertTrue(clipboard.copy_bytes(data, ClipboardConfig('command', ('clip.exe',))))
-        self.assertEqual(run.call_args.kwargs['input'], b'#include <iostream>\\n')
+        self.assertEqual(run.call_args.kwargs['input'], b'#include <iostream>\n')
 
     def test_clip_exe_missing_powershell_fails_cleanly(self):
         with patch.object(clipboard.shutil, 'which', side_effect=lambda name: '/windows/clip.exe' if name == 'clip.exe' else None), patch.object(clipboard.subprocess, 'run') as run:
