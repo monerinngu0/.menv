@@ -66,7 +66,7 @@ def compile_source(
         )
     except Exception as error:
         raise TestingError(
-            f"compile failed: {source}"
+            f"compile failed: {source}: {error}"
         ) from error
 
     return language.run_command(

@@ -23,6 +23,14 @@ class CppError(Exception):
     pass
 
 
+def _include_dirs(directories: tuple[Path, ...]) -> tuple[Path, ...]:
+    resolved = tuple(path.resolve() for path in directories)
+    for directory in resolved:
+        if not directory.is_dir():
+            raise CppError(f"include directory not found: {directory}")
+    return resolved
+
+
 def compile(
     source: Path,
     output: Path,
@@ -47,16 +55,11 @@ def compile(
         )
     )
 
-    include_dirs = (
-        *config.cpp.include_dirs,
-        *include_dirs,
-    )
-
-    for directory in include_dirs:
+    for directory in _include_dirs((*config.cpp.include_dirs, *include_dirs)):
         command.extend(
             [
                 "-I",
-                str(directory.resolve()),
+                str(directory),
             ]
         )
 
@@ -95,14 +98,7 @@ def build_submission(
     output = output.resolve()
 
     config = load_config()
-
-    include_dirs = tuple(
-        path.resolve()
-        for path in (
-            *config.cpp.include_dirs,
-            *include_dirs,
-        )
-    )
+    include_dirs = _include_dirs((*config.cpp.include_dirs, *include_dirs))
 
     visited: set[Path] = set()
     seen_includes: set[str] = set()

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import ModuleType
 
+from . import asm
 from . import cpp
 from . import python
 
@@ -14,6 +15,7 @@ class LanguageError(Exception):
 LANGUAGES = (
     cpp,
     python,
+    asm,
 )
 
 
