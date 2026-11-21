@@ -63,6 +63,20 @@ run_command = ["{output}"]
 include_dirs = []
 ```
 
+## NASM の準備
+
+Linux / WSL の x86-64 向けです。NASM と GCC を用意します。
+
+```bash
+sudo apt install nasm gcc
+mkdir -p "$HOME/.bin"
+install -m 755 "$MENV_ROOT/home/.bin/asm" "$HOME/.bin/asm"
+```
+
+`~/.bin` を PATH に追加してください。既存の `~/.bin/asm` がある場合、
+`install` はそのファイルを置き換えます。ASM ライブラリを使う場合は
+`~/library/mone-library/asm` に用意するか、[競プロ設定](kyopro.md#nasm)で検索パスを指定します。
+
 ## 更新
 
 ```bash

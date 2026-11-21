@@ -71,6 +71,13 @@ class CppConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class AsmConfig:
+    build_command: tuple[str, ...] = ("asm", "{source}", "-o", "{output}")
+    run_command: tuple[str, ...] = ("{output}",)
+    include_dirs: tuple[Path, ...] = (Path.home() / "library/mone-library/asm",)
+
+
+@dataclass(frozen=True, slots=True)
 class PythonConfig:
     run_command: tuple[str, ...] = (
         "python3",
@@ -103,6 +110,8 @@ class KyoproConfig:
     cpp: CppConfig = field(
         default_factory=CppConfig
     )
+
+    asm: AsmConfig = field(default_factory=AsmConfig)
 
     python: PythonConfig = field(
         default_factory=PythonConfig
@@ -259,6 +268,9 @@ def load_config(
         "cpp",
     )
 
+    asm = _table(data, "asm")
+    asm_defaults = AsmConfig()
+
     python = _table(
         data,
         "python",
@@ -340,6 +352,16 @@ def load_config(
                 CppConfig().run_command,
             ),
             include_dirs=cpp_include_dirs,
+        ),
+        asm=AsmConfig(
+            build_command=_string_list(asm, "build_command", asm_defaults.build_command),
+            run_command=_string_list(asm, "run_command", asm_defaults.run_command),
+            include_dirs=tuple(
+                Path(path).expanduser().resolve()
+                for path in _string_list(
+                    asm, "include_dirs", tuple(map(str, asm_defaults.include_dirs))
+                )
+            ),
         ),
         python=PythonConfig(
             run_command=_string_list(

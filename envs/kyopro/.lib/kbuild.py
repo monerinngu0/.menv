@@ -129,12 +129,7 @@ def main() -> None:
 
         config = load_config()
 
-        include_dirs = normalize_include_dirs(
-            [
-                *config.cpp.include_dirs,
-                *args.include_dir,
-            ]
-        )
+        include_dirs = normalize_include_dirs(args.include_dir)
 
         built = run(
             source,

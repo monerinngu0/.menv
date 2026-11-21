@@ -1,7 +1,7 @@
 # 競技プログラミング
 
 [導入手順](setup.md)に従い venv とコンパイラを準備してから `me kyopro` を実行します。
-対応ソースは .cpp と .py です。
+対応ソースは .cpp、.py、.asm です。
 
 ## コンテスト取得
 
@@ -119,6 +119,39 @@ include_dirs = ["~/library/mone-library", "~/library/ac-library"]
 マクロで指定する include、末尾コメント付き include、条件分岐の評価には対応しません。
 条件付き include も条件を評価せず展開し、重複ファイルは省略するため、異なる条件から同じヘッダーを読む構成は避けてください。
 自作ライブラリ用のディレクトリだけを検索パスに指定し、生成したソースを確認・コンパイルしてください。
+
+## NASM
+
+[導入手順](setup.md#nasm-の準備)に従って `asm` を配置します。
+
+```bash
+asm a.asm
+asm a.asm -o run -I ~/library/mone-library/asm
+ktest a                   # コンテスト内で a.asm を検出
+ktest main.asm            # コンテスト外でファイルを指定
+kbuild a.asm --copy       # sol.asm を生成してコピーし、手動で提出
+```
+
+`asm` は NASM で ELF64 オブジェクトを生成し、GCC と `-lm` でリンクします。
+入力を省略した場合は `a.asm`、`-o` を省略した場合は作業ディレクトリの
+`a.out` を使います。単独で呼ぶ場合、`-I` の省略時は
+`~/library/mone-library/asm` を検索し、明示した場合はそのディレクトリを使います。
+
+```toml
+[asm]
+build_command = ["asm", "{source}", "-o", "{output}"]
+run_command = ["{output}"]
+include_dirs = ["~/library/mone-library/asm"]
+```
+
+`ktest` と `kbuild` は、元のソースのディレクトリ、`[asm].include_dirs`、
+CLI の `-I` の順に検索します。ライブラリの中からも同じ検索ルートを使います。
+
+`kbuild` は `%include "mone/io.inc"` のような単独行を再帰展開します。
+末尾のコメントも許可します。条件付きの箇所も展開し、条件の評価は NASM に任せます。
+共通の依存ファイルは参照された各位置に挿入するため、ライブラリの多重定義は
+各ファイルの `%ifndef` ガードで防ぎます。循環、見つからないファイル、
+マクロで指定した include はエラーです。`incbin` のバイナリ取り込みは展開の対象外です。
 
 ## 提出
 

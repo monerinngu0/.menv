@@ -84,7 +84,7 @@ def build_submission(
         )
     except Exception as error:
         raise BuildError(
-            f"failed to build submission source: {source}"
+            f"failed to build submission source: {source} ({error})"
         ) from error
 
     built = Path(built).resolve()

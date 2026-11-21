@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -e
+
+usage() {
+    echo "Usage: asm [SOURCE] [-o FILE] [-I DIR ...]"
+}
+
+src=
+output=a.out
+include_dirs=()
+
+while (( $# )); do
+    case "$1" in
+        -o|-I)
+            if (( $# < 2 )) || [[ -z "$2" || "$2" == -* ]]; then
+                echo "asm: $1 requires a path" >&2
+                exit 2
+            fi
+            if [[ "$1" == -o ]]; then
+                output="$2"
+            else
+                include_dirs+=("$(realpath -m -- "$2")/")
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "asm: unknown option: $1" >&2
+            exit 2
+            ;;
+        *)
+            if [[ -n "$src" ]]; then
+                echo "asm: expected a single source file" >&2
+                exit 2
+            fi
+            src="$1"
+            shift
+            ;;
+    esac
+done
+
+src="$(realpath -e -- "${src:-a.asm}")"
+output="$(realpath -m -- "$output")"
+
+if [[ "$src" == "$output" ]]; then
+    echo "asm: output must differ from source" >&2
+    exit 2
+fi
+
+if (( ${#include_dirs[@]} == 0 )); then
+    include_dirs+=("$HOME/library/mone-library/asm/")
+fi
+
+nasm_args=()
+for path in "${include_dirs[@]}"; do
+    nasm_args+=(-I "$path")
+done
+
+obj="$(mktemp --suffix=.o)"
+trap 'rm -f -- "$obj"' EXIT
+
+(cd -- "$(dirname -- "$src")" && nasm -f elf64 "${nasm_args[@]}" "$src" -o "$obj")
+gcc -o "$output" "$obj" -lm

@@ -393,12 +393,7 @@ def main() -> None:
     try:
         config = load_config()
 
-        include_dirs = normalize_include_dirs(
-            [
-                *config.cpp.include_dirs,
-                *args.include_dir,
-            ]
-        )
+        include_dirs = normalize_include_dirs(args.include_dir)
 
         timeout = (
             args.timeout
